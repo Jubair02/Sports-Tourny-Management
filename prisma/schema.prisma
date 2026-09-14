@@ -1,0 +1,333 @@
+// Sports Tournament Management Platform — Prisma schema
+// SQLite provider. Enums stored as String for SQLite compatibility.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users & Roles ───────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  avatar       String?
+  role         String   @default("PUBLIC") // ADMIN | ORGANIZER | TEAM_MANAGER | REFEREE | PUBLIC
+  status       String   @default("ACTIVE") // ACTIVE | SUSPENDED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  organizerProfile   OrganizerProfile?
+  teamManagerProfile TeamManagerProfile?
+  refereeProfile     RefereeProfile?
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  announcements      Announcement[]
+  disputesRaised     Dispute[]    @relation("DisputeRaisedBy")
+}
+
+model OrganizerProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  organization   String?
+  phone          String?
+  district       String?
+  approvalStatus String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  rejectionReason String?
+  bio            String?
+  createdAt      DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournaments Tournament[]
+}
+
+model TeamManagerProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  phone    String?
+  district String?
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teams    Team[]
+}
+
+model RefereeProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  phone          String?
+  district       String?
+  specialization String? // e.g. "Football", "Cricket"
+  rating         Float    @default(0)
+  createdAt      DateTime @default(now())
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignments    RefereeAssignment[]
+}
+
+// ─── Venues ──────────────────────────────────────────────────────────────────
+
+model Venue {
+  id         String   @id @default(cuid())
+  name       String
+  division   String
+  district   String
+  upazila    String?
+  address    String?
+  capacity   Int?
+  facilities String? // JSON string array
+  image      String?
+  createdAt  DateTime @default(now())
+  matches    Match[]
+  tournaments Tournament[]
+}
+
+// ─── Tournaments ─────────────────────────────────────────────────────────────
+
+model Tournament {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  sport        String   // FOOTBALL | CRICKET | FUTSAL | BADMINTON | BASKETBALL | VOLLEYBALL | TABLE_TENNIS | ESPORTS
+  logo         String?
+  banner       String?
+  description  String
+  organizerId  String
+  venueId      String?
+  division     String?
+  district     String?
+  upazila      String?
+  location     String?
+  startDate    DateTime
+  endDate      DateTime
+  regStart     DateTime
+  regDeadline  DateTime
+  entryFee     Float    @default(0)
+  maxTeams     Int      @default(16)
+  minTeams     Int      @default(4)
+  format       String   @default("SINGLE_ELIMINATION") // SINGLE_ELIMINATION | ROUND_ROBIN | GROUP_KNOCKOUT
+  ageCategory  String?
+  gender       String?  // MALE | FEMALE | MIXED
+  rules       String?
+  prizeMoney   String?
+  status       String   @default("DRAFT") // DRAFT | PENDING_APPROVAL | PUBLISHED | REGISTRATION_OPEN | REGISTRATION_CLOSED | ONGOING | COMPLETED | CANCELLED
+  category    String?  // SCHOOL | COLLEGE | UNIVERSITY | CORPORATE | CLUB | LOCAL | DISTRICT | COMMUNITY
+  winPoints   Int      @default(3)
+  drawPoints  Int      @default(1)
+  lossPoints  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  organizer    OrganizerProfile     @relation(fields: [organizerId], references: [id])
+  venue        Venue?               @relation(fields: [venueId], references: [id])
+  registrations TournamentRegistration[]
+  participants TournamentParticipant[]
+  matches      Match[]
+  standings    Standing[]
+  announcements Announcement[]
+}
+
+// ─── Teams & Players ─────────────────────────────────────────────────────────
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  captain     String?
+  managerId   String
+  phone       String?
+  email       String?
+  district    String?
+  address     String?
+  description String?
+  createdAt   DateTime @default(now())
+
+  manager        TeamManagerProfile      @relation(fields: [managerId], references: [id])
+  players        Player[]
+  registrations  TournamentRegistration[]
+  participants   TournamentParticipant[]
+  homeMatches    Match[]                 @relation("HomeTeamMatches")
+  awayMatches    Match[]                 @relation("AwayTeamMatches")
+  standings      Standing[]
+}
+
+model Player {
+  id                String   @id @default(cuid())
+  teamId            String
+  name              String
+  photo             String?
+  dateOfBirth       DateTime?
+  phone             String?
+  jerseyNumber      Int?
+  position          String? // FORWARD | MIDFIELDER | DEFENDER | GOALKEEPER | BATTER | BOWLER | ALLROUNDER | WICKETKEEPER
+  verificationStatus String @default("PENDING") // VERIFIED | PENDING | REJECTED
+  nidReference      String?
+  createdAt         DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+// ─── Registrations & Participants ───────────────────────────────────────────
+
+model TournamentRegistration {
+  id             String   @id @default(cuid())
+  tournamentId   String
+  teamId         String
+  status         String   @default("PENDING") // PENDING | UNDER_REVIEW | APPROVED | REJECTED
+  rejectionReason String?
+  reviewNote     String?
+  paymentMethod  String?  // CASH | BKASH | NAGAD | ROCKET | ONLINE
+  paymentStatus   String  @default("PENDING") // PENDING | PAID | VERIFIED | REFUNDED
+  paymentRef      String?
+  registeredAt   DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+}
+
+model TournamentParticipant {
+  id           String  @id @default(cuid())
+  tournamentId String
+  teamId       String
+  group        String? // "A", "B", ...
+  seed         Int?
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId])
+}
+
+// ─── Matches & Events ────────────────────────────────────────────────────────
+
+model Match {
+  id            String    @id @default(cuid())
+  matchCode     String?   // human-friendly e.g. M001
+  tournamentId  String
+  round         String?   // GROUP | ROUND_1 | QUARTER_FINAL | SEMI_FINAL | FINAL
+  group         String?
+  homeTeamId    String?
+  awayTeamId    String?
+  venueId       String?
+  refereeId     String?
+  matchDate     DateTime?
+  status        String    @default("SCHEDULED") // SCHEDULED | LIVE | COMPLETED | CANCELLED
+  // Football / general
+  homeScore     Int       @default(0)
+  awayScore     Int       @default(0)
+  // Cricket
+  homeRuns      Int?
+  homeWickets   Int?
+  homeOvers     String?
+  awayRuns      Int?
+  awayWickets   Int?
+  awayOvers     String?
+  // Result workflow
+  resultStatus  String    @default("NONE") // NONE | SUBMITTED | APPROVED | REJECTED
+  resultNote    String?
+  winnerTeamId  String?
+  playerOfMatch String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  tournament Tournament   @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  homeTeam   Team?        @relation("HomeTeamMatches", fields: [homeTeamId], references: [id])
+  awayTeam   Team?        @relation("AwayTeamMatches", fields: [awayTeamId], references: [id])
+  venue      Venue?       @relation(fields: [venueId], references: [id])
+  events     MatchEvent[]
+  assignment RefereeAssignment?
+}
+
+model MatchEvent {
+  id       String  @id @default(cuid())
+  matchId  String  @unique
+  eventsJson String // JSON: [{type, teamId, playerId, minute, note}]
+  match    Match   @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+model RefereeAssignment {
+  id         String   @id @default(cuid())
+  refereeId  String
+  matchId    String   @unique
+  assignedAt DateTime @default(now())
+  referee    RefereeProfile @relation(fields: [refereeId], references: [id], onDelete: Cascade)
+  match      Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+// ─── Standings ───────────────────────────────────────────────────────────────
+
+model Standing {
+  id           String @id @default(cuid())
+  tournamentId String
+  teamId       String
+  group        String?
+  played       Int    @default(0)
+  won          Int    @default(0)
+  drawn        Int    @default(0)
+  lost         Int    @default(0)
+  goalsFor     Int    @default(0)
+  goalsAgainst Int    @default(0)
+  points       Int    @default(0)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, teamId, group])
+}
+
+// ─── Notifications, Disputes, Announcements, Audit ────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String?  // REGISTRATION | FIXTURE | MATCH | RESULT | SYSTEM
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Dispute {
+  id          String   @id @default(cuid())
+  tournamentId String?
+  matchId     String?
+  raisedById  String
+  type        String   // WRONG_RESULT | PLAYER_ELIGIBILITY | REFEREE_ISSUE | FIXTURE_ISSUE | OTHER
+  title       String
+  description String
+  status      String   @default("OPEN") // OPEN | UNDER_REVIEW | RESOLVED | REJECTED
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  raisedBy   User      @relation("DisputeRaisedBy", fields: [raisedById], references: [id])
+}
+
+model Announcement {
+  id          String   @id @default(cuid())
+  tournamentId String?
+  authorId    String
+  title       String
+  content     String
+  pinned      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  author      User     @relation(fields: [authorId], references: [id])
+  tournament  Tournament? @relation(fields: [tournamentId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  detail    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+}

@@ -1,0 +1,240 @@
+     1→# TourneyBD — Sports Tournament Management Platform — Worklog
+     2→
+     3→This is the shared worklog for all agents working on the platform.
+     4→Each agent MUST append a new section (starting with `---`) after finishing its Task ID.
+     5→
+     6→---
+     7→Task ID: 1
+     8→Agent: orchestrator (main)
+     9→Task: Foundation — schema, seed, auth, constants, layout, shared components, query layer
+    10→
+    11→Work Log:
+    12→- Defined comprehensive Prisma schema in `prisma/schema.prisma` covering: User, OrganizerProfile, TeamManagerProfile, RefereeProfile, Venue, Tournament, Team, Player, TournamentRegistration, TournamentParticipant, Match, MatchEvent, RefereeAssignment, Standing, Notification, Dispute, Announcement, AuditLog. All enums stored as String (SQLite). Relationships + cascade rules set.
+    13→- Ran `bun run db:push` successfully. Generated Prisma Client.
+    14→- Wrote `prisma/seed.ts` with rich Bangladesh-focused demo data and ran it. Includes 1 admin, 2 organizers (1 approved, 1 pending), 4 team managers, 3 referees, 8 teams (football+cricket), ~64 players, 6 venues (Dhaka/Chattogram), 4 tournaments (ongoing football round-robin with completed matches + standings; registration-open cricket; completed futsal bracket; pending-approval badminton), registrations/participants/matches/standings, announcements, notifications, disputes, audit logs.
+    15→- Created `src/lib/constants.ts`: ROLES, SPORTS, SPORT_META, TOURNAMENT_STATUS(_META), TOURNAMENT_FORMATS, FORMAT_META, TOURNAMENT_CATEGORIES, CATEGORY_META, REGISTRATION_STATUS(_META), MATCH_STATUS(_META), RESULT_STATUS(_META), PLAYER_VERIFICATION, PAYMENT_METHODS(_META), PAYMENT_STATUS_META, ORGANIZER_APPROVAL, DISPUTE_TYPES(_META), DISPUTE_STATUS_META, FOOTBALL_POSITIONS, CRICKET_POSITIONS, MATCH_ROUNDS, BANGLADESH_DIVISIONS, SPORTS_LIST.
+    16→- Created `src/lib/auth.ts`: cookie session (signed HMAC), `getSession`, `setSession`, `clearSession`, `requireAuth`, `requireRole`, `isAuthorized`, `hashPassword`/`verifyPassword` (scrypt), `json`, `errorResponse`, `apiRequireRole`. Cookie name `tourney_session`, secret from AUTH_SECRET env (default fallback).
+    17→- Created `src/lib/helpers.ts`: `logAudit`, `notify`, `slugify`, `formatDate`, `formatDateTime`, `formatTime`, `taka`, `relativeTime`, `matchCode`.
+    18→- Created `src/lib/queries.ts`: comprehensive query helpers (getTournaments, getFeaturedTournaments, getTournamentBySlug/Id, getTeams, getTeamBySlug, getPlayers, getPlayerById, getFixtures, getUpcomingMatches, getTodaysMatches, getRecentResults, getRankings, getVenues, getVenueById, getOrganizerProfile, getTeamManagerProfile, getRefereeProfile, getOrganizerTournaments, getTeamManagerTeams, getRefereeAssignments, getAdminStats). USE THESE.
+    19→- Created `src/components/providers.tsx` (ThemeProvider + QueryClientProvider), `src/components/shared/logo.tsx`, `src/components/shared/status-badge.tsx` (StatusBadge with color map emerald/amber/blue/destructive/secondary/rose/teal/orange/cyan/violet/fuchsia), `src/components/shared/sport-badge.tsx`, `src/components/shared/page-elements.tsx` (PageHeader, StatCard, EmptyState, SectionHeading).
+    20→- Created `src/components/layout/site-header.tsx` (client) — public navbar with logo, nav links, search, theme toggle, notifications bell, account dropdown. `src/components/layout/site-footer.tsx`.
+    21→- Created `src/hooks/use-session.ts` (client hook calling /api/auth/me).
+    22→- Created auth API routes: `/api/auth/login` (POST login, GET session), `/api/auth/logout` (POST), `/api/auth/register` (POST — public self-registration as TEAM_MANAGER|REFEREE|ORGANIZER; organizers get PENDING approval + admin notifications), `/api/auth/me` (GET current session).
+    23→- Created `/api/notifications` (GET list + PATCH mark read).
+    24→- Theme: emerald primary, amber accent. globals.css updated with light/dark oklch vars + custom scrollbar + bg-grid utility.
+    25→- Route structure: root `layout.tsx` (Providers + Toaster + Sonner). Public route group `src/app/(public)/` with its own `layout.tsx` (SiteHeader + main + SiteFooter). Dashboard routes `src/app/admin|organizer|team|referee` (each gets its own layout).
+    26→
+    27→Stage Summary:
+    28→- DB is seeded and ready. Demo logins:
+    29→  - Admin: `admin@tourney.bd` / `admin123`
+    30→  - Organizer (approved): `jubair@mirpursports.bd` / `organ123`
+    31→  - Team Manager: `rahim@dhakawarriors.bd` / `manage123`
+    32→  - Referee: `ref.rahman@tourney.bd` / `refer123`
+    33→- Design system: emerald primary, amber accent, NO blue/indigo as primary. shadcn/ui New York. Use existing components in `src/components/ui`.
+    34→- Shared infra is COMPLETE. Subagents must NOT edit these shared files (constants.ts, auth.ts, helpers.ts, queries.ts, providers.tsx, layout.tsx, site-header/footer, shared/*). Only import from them. Create NEW files in your own route folders + your own API route files.
+    35→- IMPORTANT business rules to enforce in dashboards/APIs: only approved organizers can create/publish tournaments; tournament can't start until min teams approved; team can't play until registration approved; only assigned referees submit results; referee results pending organizer approval; only approved results update standings; every status change logged via `logAudit`.
+    36→
+    37→Shared API conventions for all agents:
+    38→- Return JSON via `json(data, status)` / `errorResponse(msg, status)` from `@/lib/auth`.
+    39→- Protect routes: `const session = await requireRole(ROLES.ORGANIZER)` (throws Response on failure; in try/catch rethrow Response).
+    40→- Use `import { db } from "@/lib/db"`.
+    41→- Date inputs: accept ISO strings or yyyy-mm-dd; store as DateTime.
+    42→- Always call `logAudit` and `notify` on meaningful changes.
+    43→
+    44→---
+    45→Task ID: 1 (supplement)
+    46→Agent: orchestrator (main)
+    47→Task: Additional shared infrastructure for dashboards
+    48→
+    49→Work Log:
+    50→- Created `src/lib/nav.ts`: NAV_CONFIG (nav items per role: ADMIN, ORGANIZER, TEAM_MANAGER, REFEREE) each with href/label/icon (lucide). Also ROLE_LABELS. Import `NavItem` type from here.
+    51→- Created `src/components/dashboard/dashboard-shell.tsx` (client component): `<DashboardShell user={user} navItems={navItems}>{children}</DashboardShell>`. Renders fixed desktop sidebar (w-64), mobile Sheet sidebar, sticky topbar with theme toggle, notifications bell, account dropdown (logout). USE THIS in every dashboard layout — do NOT build your own sidebar.
+    52→- Created `src/lib/standings.ts`: `recalcStandings(tournamentId)` (recompute from APPROVED COMPLETED matches — football uses homeScore/awayScore, cricket uses homeRuns/awayRuns), `generateSingleElimination`, `generateRoundRobin`, `generateGroupKnockout`. Organizer agent uses these for fixture generation + result approval.
+    53→
+    54→Stage Summary:
+    55→- Dashboard layouts pattern (USE EXACTLY):
+    56→  ```tsx
+    57→  import { requireRole } from "@/lib/auth";
+    58→  import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+    59→  import { NAV_CONFIG } from "@/lib/nav";
+    60→  export default async function Layout({ children }) {
+    61→    const session = await requireRole("ORGANIZER"); // throws to error if not authed; will render Next error
+    62→    return <DashboardShell user={session} navItems={NAV_CONFIG.ORGANIZER}>{children}</DashboardShell>;
+    63→  }
+    64→  ```
+    65→  NOTE: requireRole throws on unauth. To redirect to login instead of erroring, wrap: catch not needed — Next will show error page. For better UX, the layout can check getSession() and redirect. Use `redirect("/login")` from next/navigation if no session. Recommended pattern:
+    66→  ```tsx
+    67→  import { getSession } from "@/lib/auth"; import { redirect } from "next/navigation";
+    68→  const session = await getSession();
+    69→  if (!session || !["ORGANIZER","ADMIN"].includes(session.role)) redirect("/login");
+    70→  ```
+    71→  (ADMIN should access all dashboards.)
+    72→- DashboardShell expects `user` to have {id,name,email,role}. The SessionUser from getSession has those. Pass navItems = NAV_CONFIG[session.role].
+    73→
+    74→---
+    75→Task ID: 2-a
+    76→Agent: full-stack-developer (public site)
+    77→Task: Public website — home + all public pages + public APIs
+    78→
+    79→Work Log:
+    80→- Created reusable public components in `src/components/public/`: `images.ts` (deterministic Unsplash pools + pickImage), `tournament-card.tsx`, `team-card.tsx`, `player-card.tsx`, `match-card.tsx` (with `compact` variant + cricket score support), `venue-card.tsx`, `standings-table.tsx` (medals + top-N highlight + cricket label swap), `tournament-filters.tsx` (client), `tournament-tabs.tsx` (client, 5 sub-routes), `tournament-sub-header.tsx`, `url-filters.tsx` (generic client URL param filters), `url-tabs.tsx` (generic client URL tabs), `contact-form.tsx` (client).
+    81→- Created `src/lib/public-queries.ts` that mirrors `getTournamentById`, `getTournamentBySlug`, `getFixtures` but fixes the shared `@/lib/queries.ts` Prisma include bug (`referee` relation doesn't exist on `Match`; correct path is `assignment.referee.user`). Also added `getTeamById` (route uses `[id]` cuid, shared layer only has `getTeamBySlug`) and `matchRefereeName` helper. Did NOT edit the shared `@/lib/queries.ts` per task constraint.
+    82→- Built the home page `src/app/(public)/page.tsx` with 10 sections: hero (bg-grid + Unsplash bg + floating stat chips + live-match card), sport categories row, featured tournaments grid, today's matches horizontal list, upcoming + recent results two-column, rankings + popular teams, how-it-works (3 roles), CTA banner, stats strip.
+    83→- Built tournaments listing `src/app/(public)/tournaments/page.tsx` (search + sport/status/category filters, count, empty state, 12-per-page grid).
+    84→- Built tournament detail `src/app/(public)/tournaments/[id]/page.tsx` (banner with sport/status/format/category badges, organizer card, venue card, key info grid, rules, announcements, approved teams count vs max).
+    85→- Built tournament sub-pages: fixtures (grouped by date), standings (full table), teams (approved grid + pending panel), matches (full Table with code/round/teams/date/venue/score/status/result).
+    86→- Built teams listing + detail (gradient header + squad Table + registered tournaments sidebar).
+    87→- Built players listing + profile (avatar, jersey, position, verification badge — NID number never shown).
+    88→- Built fixtures page (Today/Upcoming/All tabs + sport filter + grouped by date), results (scoreline cards with winner highlight + POTM chip + sport filter), rankings (podium + medal table + sport filter).
+    89→- Built venues listing + detail (image header + facilities + matches hosted + tournaments held).
+    90→- Built about page (mission hero + 4 stat cards + 8 features + 8 sports + Bangladesh geography + 4 roles + CTA).
+    91→- Built contact page (ContactForm client + contact info cards + demo logins card with all 4 demo accounts).
+    92→- Created `src/app/api/public/contact/route.ts` POST handler (validates, logs, returns `{ok:true}`).
+    93→
+    94→Stage Summary:
+    95→- Public site is COMPLETE and fully functional. All routes return 200, all pages compile, the contact API returns expected JSON.
+    96→- Files created (no shared files modified):
+    97→  - 11 reusable components in `src/components/public/`
+    98→  - 16 page files in `src/app/(public)/` (home + 4 main sections + tournament detail + 4 tournament sub-pages + team detail + player detail + venue detail + about + contact)
+    99→  - 1 API route `src/app/api/public/contact/route.ts`
+   100→  - 1 helper `src/lib/public-queries.ts`
+   101→- Design: emerald/amber palette, mobile-first responsive, custom scrollbar styling, sticky sub-headers, polished hover states, sport-aware theming, Bangladesh-focused copy and Unsplash imagery.
+   102→- Known foundation bug: `@/lib/queries.ts` has 3 invalid `referee` includes on `Match` model (lines 62, 80, 151). My public pages work around it by importing from `@/lib/public-queries`. Orchestrator should reconcile by fixing the shared layer so admin/organizer/referee dashboards don't hit PrismaClientValidationError.
+   103→- Lint passes for all public files (verified by running `bunx eslint` on `src/components/public/**`, `src/app/(public)/**`, `src/app/api/public/**`, `src/lib/public-queries.ts` — exit 0). The 4 remaining `bun run lint` errors live in shared foundation files (`dashboard-shell.tsx`, `site-header.tsx`).
+   104→- Working route paths: `/`, `/tournaments`, `/tournaments/[id]`, `/tournaments/[id]/{fixtures,standings,teams,matches}`, `/teams`, `/teams/[id]`, `/players`, `/players/[id]`, `/fixtures`, `/results`, `/rankings`, `/venues`, `/venues/[id]`, `/about`, `/contact`, plus `POST /api/public/contact`.
+   105→
+   106→---
+   107→Task ID: 2-b
+   108→Agent: full-stack-developer (auth + admin)
+   109→Task: Auth pages + Admin dashboard + modules + APIs
+   110→
+   111→Work Log:
+   112→- Discovered that auth pages, admin pages, admin components, and admin APIs were already scaffolded from a previous incomplete run of task 2-b. Audited each file for correctness and runtime safety.
+   113→- Auth pages `(public)/login` and `(public)/register` (server) read `next`/`reason` from searchParams and render the corresponding client forms. Already-logged-in users are redirected to their role dashboard.
+   114→- `LoginForm` (client): split-screen layout — emerald brand panel on the left with sports value-props + amber accent, form on the right. Email+password with show/hide toggle. "Show demo accounts" toggle expands the 4 demo logins (Admin/Organizer/Team Manager/Referee) as clickable chips that auto-fill credentials. POSTs to `/api/auth/login`; on success redirects to `next` or role dashboard; toast on error. Reads `reason=forbidden` to show a "you don't have permission" banner.
+   115→- `RegisterForm` (client): split-screen layout with amber→emerald gradient brand panel listing the 3 roles. Fields: name, email, password (show/hide), phone, district (Select flattened from BANGLADESH_DIVISIONS districts), role (3-button picker: TEAM_MANAGER / REFEREE / ORGANIZER). When ORGANIZER is picked, organization field appears with an info note that new organizers require admin approval. POSTs to `/api/auth/register`; on success redirects to role dashboard with role-appropriate toast (special message for pending organizer).
+   116→- Admin layout `src/app/admin/layout.tsx`: server component — `getSession()`, redirects unauthenticated users to `/login?next=/admin` and non-admins to `/login?next=/admin&reason=forbidden`. Renders children via `AdminShell` client wrapper (which loads `NAV_CONFIG.ADMIN` on the client to avoid serializing lucide icons across the server/client boundary) → `DashboardShell`.
+   117→- Admin dashboard `src/app/admin/page.tsx`: pulls KPI grid (10 StatCards: Total Users, Organizers, Teams, Tournaments, Active, Completed, Pending Approvals, Pending Registrations, Open Disputes, Matches Done/Total with % hint), two recharts (SportBarChart for Tournaments by Sport, StatusDonutChart for Tournament status distribution), PendingApprovalsPanel listing pending organizers + pending-approval tournaments with inline Approve/Reject buttons, and a Recent Activity panel showing the 8 latest audit logs.
+   118→- Admin modules (all server pages, all using shadcn Table with `max-h-[70vh] overflow-y-auto scrollbar-thin` + sticky headers):
+   119→  1. `users/page.tsx` — users table with role filter chips (counts from groupBy), role/status badges, suspend/activate buttons, pending organizer highlight + inline approve/reject.
+   120→  2. `tournaments/page.tsx` — tournaments table with status+sport filter chips, sport/status badges, organizer info, teams count vs max, entry fee (taka), pending-approval highlight + Approve/Publish/Reject buttons.
+   121→  3. `teams/page.tsx` — teams table with logo/initial, manager, district, sports badges (resolved from registrations), players count, created date.
+   122→  4. `matches/page.tsx` — matches table with code, teams + score (football + cricket scoreline), tournament + sport badge, venue, referee (via `assignment.referee.user`), datetime, status + result status badges. Status filter chips.
+   123→  5. `venues/page.tsx` — venue grid (image header, name, district/division, capacity/matches/tournaments counts, facilities badges) + Create Venue dialog form. Edit dialog inline per card.
+   124→  6. `disputes/page.tsx` — disputes with status filter chips; expandable rows (DisputesListClient + DisputeRow) showing description + resolution + Under Review / Resolve / Reject dialogs (each opens a resolution-note dialog before PATCHing).
+   125→  7. `announcements/page.tsx` — 2-column layout: New Announcement form (title, content, optional tournament select, pinned checkbox) + Published list with pin indicator, scope badge (platform-wide vs tournament-scoped), delete button.
+   126→  8. `audit-logs/page.tsx` — searchable + paginated audit log table (User, Action, Entity+id, Detail, When). URL-synced search & pagination.
+   127→  9. `reports/page.tsx` — KPIs (Total Tournaments, Districts Reached, Verified Registrations, Total Revenue), 3 recharts (by sport, by status donut, by district bar), top-teams-by-performance table with medal-styled rank badges.
+   128→  10. `settings/page.tsx` — UI-only settings form (win/draw/loss points, support email, maintenance switch) — "Save" triggers a toast (no new DB table needed per spec).
+   129→- Admin API routes (all use `apiRequireRole(ROLES.ADMIN)` → 401 if no session, 403 if not admin, plus `try/catch` that re-throws the Response from `apiRequireRole` and otherwise returns 500):
+   130→  - `users/route.ts` (GET list with role/q/status filters)
+   131→  - `users/[id]/route.ts` (PATCH suspend/activate/role-change with notify + logAudit; blocks modifying other admins)
+   132→  - `organizers/[id]/approve/route.ts` (POST approve/reject with reason; notify user + log audit)
+   133→  - `tournaments/route.ts` (GET all with filters)
+   134→  - `tournaments/[id]/status/route.ts` (POST status change; notify organizer + log audit; admin can force any transition)
+   135→  - `venues/route.ts` (GET list + POST create with district validation + logAudit)
+   136→  - `venues/[id]/route.ts` (PATCH update + DELETE)
+   137→  - `disputes/route.ts` (GET list — enriched with manually-resolved tournament/match — see fix below)
+   138→  - `disputes/[id]/route.ts` (PATCH status/resolution; notify raiser + log audit)
+   139→  - `announcements/route.ts` (GET list + POST create with logAudit)
+   140→  - `announcements/[id]/route.ts` (DELETE with logAudit)
+   141→  - `audit-logs/route.ts` (GET with q search + pagination)
+   142→- Client action components (all use `useTransition` + `router.refresh()` + `toast.success/error`): `PendingApprovalsPanel`, `UserActions`, `TournamentStatusActions`, `VenueFormDialog`, `DisputesListClient`/`DisputeRow`, `AnnouncementManager`, `AuditLogsTable`, `SettingsForm`, `DashboardCharts`, `ReportsCharts`.
+   143→- BUG FIXES applied during this run (all in my own files — no shared foundation files modified):
+   144→  1. `/admin/disputes` + `GET /api/admin/disputes` were 500ing because the query tried to `include: { tournament: ..., match: ... }` on the Dispute model — but the Prisma schema only declares `tournamentId String?` and `matchId String?` as plain columns with NO relations. Rewrote both to fetch disputes first, then resolve related tournaments/matches via separate `findMany({ where: { id: { in: [...] } } })` and join in JS. Same shape preserved so DisputeRow/DisputesListClient render unchanged.
+   145→  2. `PATCH /api/admin/disputes/[id]` had `include: { raisedBy: true, tournament: true }` — removed the bogus `tournament` include.
+   146→  3. `/admin/reports` was 500ing on `db.tournamentRegistration.aggregate({ _sum: {}, _count: true })` (Prisma rejects empty `_sum`). The aggregate result was unused dead code — replaced with `findMany({ where: { paymentStatus: "VERIFIED" }, include: { tournament: { select: { entryFee: true } } } })` and summed `entryFee` in JS for the actual revenue figure (which was already done at the bottom of the file via a duplicate `verifiedRegs` declaration — also removed the duplicate).
+   147→- Verified all routes return 200 (admin pages, login, register), 307 (forbidden non-admin → login, already-logged-in → dashboard), 401/403 (admin APIs without admin session), and all mutation APIs work end-to-end (approve organizer, change tournament status, update dispute, create venue, create announcement, suspend user).
+   148→- Lint: `bunx eslint src/app/admin src/components/admin src/components/auth 'src/app/(public)/login' 'src/app/(public)/register' src/app/api/admin` → exit 0 (no errors in any of my files). The 4 `bun run lint` errors that remain live in shared foundation files (`dashboard-shell.tsx`, `site-header.tsx`) which I'm explicitly forbidden to edit per the task instructions.
+   149→
+   150→Stage Summary:
+   151→- Auth pages (login, register) + Admin dashboard (10 KPIs + 2 charts + pending approvals + recent activity) + 10 admin modules (users, tournaments, teams, matches, venues, disputes, announcements, audit-logs, reports, settings) + 12 admin API routes are all complete and verified working.
+   152→- Files I created/own (no shared foundation files modified):
+   153→  - Auth: `src/app/(public)/login/page.tsx`, `src/app/(public)/register/page.tsx`, `src/components/auth/login-form.tsx`, `src/components/auth/register-form.tsx`
+   154→  - Admin pages: `src/app/admin/layout.tsx`, `src/app/admin/page.tsx`, `src/app/admin/{users,tournaments,teams,matches,venues,disputes,announcements,audit-logs,reports,settings}/page.tsx`
+   155→  - Admin components: `src/components/admin/{admin-shell,pending-approvals-panel,dashboard-charts,user-actions,tournament-status-actions,venue-form-dialog,disputes-list-client,dispute-row,announcement-manager,audit-logs-table,reports-charts,settings-form}.tsx`
+   156→  - Admin APIs: `src/app/api/admin/{users/route.ts, users/[id]/route.ts, organizers/[id]/approve/route.ts, tournaments/route.ts, tournaments/[id]/status/route.ts, venues/route.ts, venues/[id]/route.ts, disputes/route.ts, disputes/[id]/route.ts, announcements/route.ts, announcements/[id]/route.ts, audit-logs/route.ts}`
+   157→- Working routes (HTTP 200 verified):
+   158→  - Pages: `/login`, `/register`, `/admin`, `/admin/users`, `/admin/tournaments`, `/admin/teams`, `/admin/matches`, `/admin/venues`, `/admin/disputes`, `/admin/announcements`, `/admin/audit-logs`, `/admin/reports`, `/admin/settings`
+   159→  - APIs: `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/auth/me`, `POST /api/auth/logout`, `GET/PATCH /api/admin/users`, `POST /api/admin/organizers/[id]/approve`, `GET /api/admin/tournaments`, `POST /api/admin/tournaments/[id]/status`, `GET/POST /api/admin/venues`, `PATCH/DELETE /api/admin/venues/[id]`, `GET /api/admin/disputes`, `PATCH /api/admin/disputes/[id]`, `GET/POST /api/admin/announcements`, `DELETE /api/admin/announcements/[id]`, `GET /api/admin/audit-logs`
+   160→- All business rules enforced: only ADMIN passes the API guard; approving organizers/tournaments notifies the affected user + logs audit; suspending users sends a notification; non-admin users hitting `/admin/*` are redirected to `/login?next=/admin&reason=forbidden`; new organizers register as PENDING and show up in the dashboard's Pending Approvals panel.
+   161→- Important schema note for downstream agents: The `Dispute` model in `prisma/schema.prisma` has `tournamentId String?` and `matchId String?` columns but NO `tournament Tournament? @relation(...)` / `match Match? @relation(...)` relation fields. Any code that needs to display dispute context must resolve tournaments/matches manually via separate `findMany({ where: { id: { in: [...] } } })` calls — the pattern used in `src/app/admin/disputes/page.tsx` and `src/app/api/admin/disputes/route.ts` is the reference implementation.
+   162→
+   163→---
+   164→Task ID: 2-d
+   165→Agent: full-stack-developer (team + referee)
+   166→Task: Team Manager dashboard (teams, players, registrations) + Referee dashboard (assignments, submit result) + APIs
+   167→
+   168→Work Log:
+   169→- Read `worklog.md` and shared infra (`@/lib/auth`, `@/lib/constants`, `@/lib/queries`, `@/lib/helpers`, `@/lib/nav`, `@/components/dashboard/dashboard-shell`, `@/components/shared/*`) before writing any code.
+   170→- Created `src/app/team/layout.tsx` + `src/app/referee/layout.tsx` using the redirect-on-unauth pattern (TEAM_MANAGER|ADMIN / REFEREE|ADMIN).
+   171→- Discovered that passing `NAV_CONFIG.TEAM_MANAGER` (which contains lucide icon functions) from a Server Component to the client `DashboardShell` fails with "Functions cannot be passed directly to Client Components". Mirrored the orchestrator's `AdminShell` solution by creating thin client wrappers `src/components/team/team-shell.tsx` and `src/components/referee/referee-shell.tsx` that import NAV_CONFIG on the client and forward to `DashboardShell`. The layouts now render these wrappers instead of `<DashboardShell>` directly.
+   172→- Built the Team Manager dashboard:
+   173→  - `src/app/team/page.tsx` — overview with 6 KPI cards (My Teams, Total Players, Registered, Pending Apps, Upcoming, Recent Results), My Teams quick list, recent notifications, upcoming matches, recent applications, recent results grid.
+   174→  - `src/app/team/teams/page.tsx` — list my teams as cards (logo, captain, players/approved counts, district, phone/email, created date). Includes a "Create Team" button.
+   175→  - `src/app/team/teams/[id]/page.tsx` — team profile with logo header, info grid, squad table (jersey#, player, position, DOB, verification badge, edit action), registrations sidebar, quick stats (squad/verified/pending/tournaments). Ownership enforced (404 if not your team and not ADMIN).
+   176→  - `src/app/team/players/page.tsx` — all players across my teams as a single Table.
+   177→  - `src/app/team/tournaments/page.tsx` — open-registration tournaments grid (banner, sport, venue, date, slots-left, entry fee, deadline) + my-registrations table.
+   178→  - `src/app/team/applications/page.tsx` — applications grouped by status (Pending/Under Review/Approved/Rejected) with rejection reason shown when present + "Report Issue" → dispute dialog.
+   179→  - `src/app/team/fixtures/page.tsx` — upcoming matches for my teams grouped by date.
+   180→  - `src/app/team/results/page.tsx` — completed matches with scoreline, winner highlight, player-of-match chip, venue/date.
+   181→  - `src/app/team/standings/page.tsx` — full standings table per tournament I'm in, with my teams highlighted in emerald.
+   182→  - `src/app/team/disputes/page.tsx` — raise dispute dialog (type select, title, description, optional tournament/match) + list my disputes. NOTE: Dispute model has no `tournament`/`match` relations in schema — fetched them manually via separate findMany calls (same pattern as admin/disputes API).
+   183→  - `src/app/team/profile/page.tsx` — edit profile (name, phone, district).
+   184→- Built Team Manager API routes (all guarded by `getSession` + role check + ownership validation):
+   185→  - `POST /api/team/teams` — create team, managerId from caller's TeamManagerProfile, slug via slugify with uniqueness loop.
+   186→  - `GET /api/team/teams` — my teams with players/registrations.
+   187→  - `GET|PATCH /api/team/teams/[id]` — fetch/update my team (ownership check; ADMIN bypass).
+   188→  - `POST /api/team/players?teamId=...` — add player to a team I own, sets verificationStatus=PENDING, notifies organizer(s) of related tournaments.
+   189→  - `GET /api/team/players` — all my players across teams.
+   190→  - `PATCH|DELETE /api/team/players/[id]` — edit/remove player (ownership check).
+   191→  - `POST /api/team/register` — register team for tournament: validates tournament is REGISTRATION_OPEN, team not already registered, max-teams cap, ownership; creates TournamentRegistration status=PENDING with paymentMethod; notifies organizer + manager; logs audit.
+   192→  - `GET /api/team/registrations` — my registrations with tournament/venue/organizer/team info.
+   193→  - `POST|GET /api/team/disputes` — raise dispute (type from DISPUTE_TYPES), GET my disputes (manual join for tournament/match since Dispute model has no relation), notify admins on creation.
+   194→  - `PATCH /api/team/profile` — update name (User), phone/district (TeamManagerProfile).
+   195→- Built the Referee dashboard:
+   196→  - `src/app/referee/page.tsx` — overview with 5 KPI cards (Total Assignments, Upcoming, Today, Pending Results, Completed), highlighted "Next Match" card, pending-results list, recent-submissions list, today's matches grid.
+   197→  - `src/app/referee/matches/page.tsx` — my assignments with tabs (Upcoming / Today / Completed). Serializes match data to plain objects (Dates → ISO strings) for the client `RefereeMatchesTabs`.
+   198→  - `src/app/referee/submit/page.tsx` — pick a match (Select) then show the submit-result form. Fetches each match's home/away team players so the football events builder can list them.
+   199→  - `src/app/referee/matches/[id]/page.tsx` — match detail + submit form pre-selected for that match (ownership: only the assigned referee or ADMIN). Hides form if result is already APPROVED.
+   200→  - `src/app/referee/history/page.tsx` — completed matches I officiated with scores, winner, POTM, status.
+   201→  - `src/app/referee/profile/page.tsx` — read-only profile (specialization, district, phone, rating, member since, total assignments, completed count) with note that admin manages referee profile fields.
+   202→- Built the `SubmitResultForm` client component (`src/components/referee/submit-result-form.tsx`):
+   203→  - Workflow banner clearly stating: "You submit → Pending organizer confirmation → Official result" — and explicit note that submission is saved as SUBMITTED, only organizer can mark official.
+   204→  - For FOOTBALL/FUTSAL: large scoreline inputs (home/away, big tabular-nums), events builder (add/remove rows with type GOAL|YELLOW|RED|SUB, team select, player select filtered by team, minute, optional note), live event counter.
+   205→  - For CRICKET: home/away innings inputs (runs/wickets/overs), overs validated as `^\d+(\.\d{1,2})?$`, auto-winner calc (higher runs), winner highlighted.
+   206→  - Common: match notes textarea, player-of-the-match input.
+   207→  - Submit → POST `/api/referee/matches/[id]/submit`, on success `router.refresh()` + `toast.success("Result submitted for organizer approval")`.
+   208→- Built Referee API routes:
+   209→  - `GET /api/referee/assignments` — my assignments with match includes.
+   210→  - `GET /api/referee/matches` — flat list of my matches.
+   211→  - `POST /api/referee/matches/[id]/submit` — validates caller is the assigned referee (or ADMIN); sets `match.status=COMPLETED`, `match.resultStatus=SUBMITTED` (CRITICAL: never APPROVED — only organizer can approve); stores `MatchEvent.eventsJson` via upsert; auto-resolves winner if not provided; logs audit; notifies organizer + both team managers. Returns 409 if match is already APPROVED (organizer must reject first).
+   212→- Verified business rule: Referee submit → `resultStatus=SUBMITTED` only. NEVER `APPROVED`. Tested via curl: submitted a match with football events, got back `{resultStatus: "SUBMITTED", status: "COMPLETED"}`.
+   213→- Tested all routes end-to-end:
+   214→  - Logged in as `rahim@dhakawarriors.bd` (team manager) and `ref.rahman@tourney.bd` (referee).
+   215→  - All 10 team pages return 200 (overview, teams, team detail, players, tournaments, applications, fixtures, results, standings, disputes, profile).
+   216→  - All 5 referee pages return 200 (overview, matches, submit, match detail, history, profile).
+   217→  - Team APIs tested: create team ✓, add player ✓, register team (PENDING+BKASH) ✓, raise dispute ✓, profile update ✓.
+   218→  - Referee submit API tested: football match with events → COMPLETED + SUBMITTED + winner inferred + playerOfMatch saved ✓.
+   219→- Lint: `bunx eslint src/app/team src/app/referee src/app/api/team src/app/api/referee src/components/team src/components/referee` exits 0 (zero errors, zero warnings). The 4 remaining `bun run lint` errors live exclusively in shared foundation files (`dashboard-shell.tsx`, `site-header.tsx`) which I'm not allowed to edit — they are pre-existing and acknowledged in the worklog.
+   220→
+   221→Stage Summary:
+   222→- Files created (no shared foundation files modified):
+   223→  - Layouts (2): `src/app/team/layout.tsx`, `src/app/referee/layout.tsx`
+   224→  - Team Manager server pages (11): `src/app/team/page.tsx`, `teams/page.tsx`, `teams/[id]/page.tsx`, `players/page.tsx`, `tournaments/page.tsx`, `applications/page.tsx`, `fixtures/page.tsx`, `results/page.tsx`, `standings/page.tsx`, `disputes/page.tsx`, `profile/page.tsx`
+   225→  - Referee server pages (6): `src/app/referee/page.tsx`, `matches/page.tsx`, `matches/[id]/page.tsx`, `submit/page.tsx`, `history/page.tsx`, `profile/page.tsx`
+   226→  - Team Manager API routes (8): `src/app/api/team/{teams/route.ts, teams/[id]/route.ts, players/route.ts, players/[id]/route.ts, register/route.ts, registrations/route.ts, disputes/route.ts, profile/route.ts}`
+   227→  - Referee API routes (3): `src/app/api/referee/{assignments/route.ts, matches/route.ts, matches/[id]/submit/route.ts}`
+   228→  - Client components (8): `src/components/team/{team-shell.tsx, team-form-dialog.tsx, player-form-dialog.tsx, register-tournament-dialog.tsx, raise-dispute-dialog.tsx, profile-form.tsx}` + `src/components/referee/{referee-shell.tsx, submit-result-form.tsx, submit-result-picker.tsx, matches-tabs.tsx}`
+   229→- Key decisions:
+   230→  - Created `TeamShell` and `RefereeShell` client wrappers (mirroring `AdminShell`) to work around the icon-serialization issue when passing NAV_CONFIG from server → client.
+   231→  - Dispute page/API fetches tournament/match names via separate findMany calls (Dispute model has no `tournament`/`match` relation — only `tournamentId`/`matchId` plain columns).
+   232→  - For ADMIN access to team/referee dashboards: fall back to `findFirst()` on the corresponding profile so admin can preview dashboards without breaking.
+   233→  - Football events builder stores `{type, teamId, playerId, minute, note}` JSON array in `MatchEvent.eventsJson` (one row per match, upserted).
+   234→  - Cricket overs validated as `^\d+(\.\d{1,2})?$` (e.g. "18.4").
+   235→  - Winner auto-inferred from scores (football: higher of homeScore/awayScore; cricket: higher of homeRuns/awayRuns) if not explicitly provided; ties produce `winnerTeamId=null`.
+   236→- Business rules enforced: only assigned referees submit results; referee submissions are SUBMITTED only (never APPROVED); every submission → logAudit + notify organizer + notify both team managers; ownership checks on all team resource mutations; ADMIN bypasses ownership for inspection.
+   237→- Working routes (team): `/team`, `/team/teams`, `/team/teams/[id]`, `/team/players`, `/team/tournaments`, `/team/applications`, `/team/fixtures`, `/team/results`, `/team/standings`, `/team/disputes`, `/team/profile`, `GET|POST /api/team/teams`, `GET|PATCH /api/team/teams/[id]`, `GET|POST /api/team/players`, `PATCH|DELETE /api/team/players/[id]`, `POST /api/team/register`, `GET /api/team/registrations`, `POST|GET /api/team/disputes`, `PATCH /api/team/profile`.
+   238→- Working routes (referee): `/referee`, `/referee/matches`, `/referee/submit`, `/referee/matches/[id]`, `/referee/history`, `/referee/profile`, `GET /api/referee/assignments`, `GET /api/referee/matches`, `POST /api/referee/matches/[id]/submit`.
+   239→- Confirmation: referee submit → organizer approve flow is correctly wired. Referee's submit API sets `resultStatus=SUBMITTED` (NOT APPROVED); match.status set to COMPLETED; organizer (2-c agent) is responsible for the APPROVE step. Verified end-to-end via curl.
+   240→

@@ -1,0 +1,638 @@
+     1→// Seed script: rich Bangladesh-focused demo data
+     2→// Run: bun prisma/seed.ts
+     3→import { PrismaClient } from "@prisma/client";
+     4→import crypto from "crypto";
+     5→
+     6→const db = new PrismaClient();
+     7→
+     8→function hashPassword(password: string): string {
+     9→  const salt = crypto.randomBytes(16).toString("hex");
+    10→  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+    11→  return `${salt}:${hash}`;
+    12→}
+    13→
+    14→function slugify(s: string) {
+    15→  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    16→}
+    17→
+    18→const DAYS = 24 * 60 * 60 * 1000;
+    19→const now = new Date();
+    20→
+    21→async function main() {
+    22→  console.log("Clearing existing data...");
+    23→  // Delete in dependency order
+    24→  await db.matchEvent.deleteMany();
+    25→  await db.refereeAssignment.deleteMany();
+    26→  await db.match.deleteMany();
+    27→  await db.standing.deleteMany();
+    28→  await db.tournamentParticipant.deleteMany();
+    29→  await db.tournamentRegistration.deleteMany();
+    30→  await db.player.deleteMany();
+    31→  await db.team.deleteMany();
+    32→  await db.venue.deleteMany();
+    33→  await db.tournament.deleteMany();
+    34→  await db.announcement.deleteMany();
+    35→  await db.dispute.deleteMany();
+    36→  await db.notification.deleteMany();
+    37→  await db.auditLog.deleteMany();
+    38→  await db.organizerProfile.deleteMany();
+    39→  await db.teamManagerProfile.deleteMany();
+    40→  await db.refereeProfile.deleteMany();
+    41→  await db.user.deleteMany();
+    42→
+    43→  console.log("Creating users...");
+    44→  // ── Admin ──
+    45→  const admin = await db.user.create({
+    46→    data: {
+    47→      email: "admin@tourney.bd",
+    48→      passwordHash: hashPassword("admin123"),
+    49→      name: "Arif Hossain",
+    50→      phone: "+8801711000001",
+    51→      role: "ADMIN",
+    52→    },
+    53→  });
+    54→
+    55→  // ── Organizers ──
+    56→  const orgUser1 = await db.user.create({
+    57→    data: {
+    58→      email: "jubair@mirpursports.bd",
+    59→      passwordHash: hashPassword("organ123"),
+    60→      name: "Jubair Ahmed",
+    61→      phone: "+8801711000002",
+    62→      role: "ORGANIZER",
+    63→    },
+    64→  });
+    65→  const organizer1 = await db.organizerProfile.create({
+    66→    data: {
+    67→      userId: orgUser1.id,
+    68→      organization: "Mirpur Sports Association",
+    69→      phone: "+8801711000002",
+    70→      district: "Dhaka",
+    71→      approvalStatus: "APPROVED",
+    72→      bio: "Organizing community football & cricket tournaments across Mirpur since 2015.",
+    73→    },
+    74→  });
+    75→
+    76→  const orgUser2 = await db.user.create({
+    77→    data: {
+    78→      email: "rina@uttarafc.bd",
+    79→      passwordHash: hashPassword("organ123"),
+    80→      name: "Rina Akter",
+    81→      phone: "+8801711000003",
+    82→      role: "ORGANIZER",
+    83→    },
+    84→  });
+    85→  const organizer2 = await db.organizerProfile.create({
+    86→    data: {
+    87→      userId: orgUser2.id,
+    88→      organization: "Uttara Sports Club",
+    89→      phone: "+8801711000003",
+    90→      district: "Dhaka",
+    91→      approvalStatus: "PENDING",
+    92→      bio: "Upcoming organizer focused on women's sports and youth leagues.",
+    93→    },
+    94→  });
+    95→
+    96→  // ── Team Managers ──
+    97→  const tmUsers: { user: any; profile: any }[] = [];
+    98→  const tmData = [
+    99→    { email: "rahim@dhakawarriors.bd", name: "Rahim Uddin", phone: "+8801711000010", district: "Dhaka" },
+   100→    { email: "kamal@mirpurfc.bd", name: "Kamal Hossain", phone: "+8801711000011", district: "Dhaka" },
+   101→    { email: "sumon@chattogramtigers.bd", name: "Sumon Barua", phone: "+8801711000012", district: "Chattogram" },
+   102→    { email: "faisal@bananiblazers.bd", name: "Faisal Rahman", phone: "+8801711000013", district: "Dhaka" },
+   103→  ];
+   104→  for (const t of tmData) {
+   105→    const u = await db.user.create({
+   106→      data: {
+   107→        email: t.email,
+   108→        passwordHash: hashPassword("manage123"),
+   109→        name: t.name,
+   110→        phone: t.phone,
+   111→        role: "TEAM_MANAGER",
+   112→      },
+   113→    });
+   114→    const p = await db.teamManagerProfile.create({
+   115→      data: { userId: u.id, phone: t.phone, district: t.district },
+   116→    });
+   117→    tmUsers.push({ user: u, profile: p });
+   118→  }
+   119→
+   120→  // ── Referees ──
+   121→  const refUsers: { user: any; profile: any }[] = [];
+   122→  const refData = [
+   123→    { email: "ref.rahman@tourney.bd", name: "Referee Rahman", phone: "+8801711000020", spec: "Football", district: "Dhaka" },
+   124→    { email: "ref.karim@tourney.bd", name: "Referee Karim", phone: "+8801711000021", spec: "Cricket", district: "Chattogram" },
+   125→    { email: "ref.sabbir@tourney.bd", name: "Referee Sabbir", phone: "+8801711000022", spec: "Football", district: "Dhaka" },
+   126→  ];
+   127→  for (const r of refData) {
+   128→    const u = await db.user.create({
+   129→      data: {
+   130→        email: r.email,
+   131→        passwordHash: hashPassword("refer123"),
+   132→        name: r.name,
+   133→        phone: r.phone,
+   134→        role: "REFEREE",
+   135→      },
+   136→    });
+   137→    const p = await db.refereeProfile.create({
+   138→      data: { userId: u.id, phone: r.phone, district: r.district, specialization: r.spec, rating: 4.5 },
+   139→    });
+   140→    refUsers.push({ user: u, profile: p });
+   141→  }
+   142→
+   143→  console.log("Creating venues...");
+   144→  const venues = await Promise.all([
+   145→    db.venue.create({
+   146→      data: {
+   147→        name: "Mirpur Bangla College Ground",
+   148→        division: "Dhaka", district: "Dhaka", upazila: "Mirpur",
+   149→        address: "Block C, Mirpur, Dhaka", capacity: 2000,
+   150→        facilities: JSON.stringify(["Floodlight", "Parking", "Canteen", "Changing Room"]),
+   151→        image: "https://images.unsplash.com/photo-1577223625816-7546f13df25d?w=800&q=70",
+   152→      },
+   153→    }),
+   154→    db.venue.create({
+   155→      data: {
+   156→        name: "Uttara Sector 4 Playground",
+   157→        division: "Dhaka", district: "Gazipur", upazila: "Uttara",
+   158→        address: "Sector 4, Uttara, Dhaka", capacity: 1500,
+   159→        facilities: JSON.stringify(["Parking", "Canteen"]),
+   160→        image: "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&q=70",
+   161→      },
+   162→    }),
+   163→    db.venue.create({
+   164→      data: {
+   165→        name: "Dhanmondi Cricket Ground",
+   166→        division: "Dhaka", district: "Dhaka", upazila: "Dhanmondi",
+   167→        address: "Dhanmondi, Dhaka", capacity: 3000,
+   168→        facilities: JSON.stringify(["Floodlight", "Pavilion", "Scoreboard", "Parking"]),
+   169→        image: "https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=800&q=70",
+   170→      },
+   171→    }),
+   172→    db.venue.create({
+   173→      data: {
+   174→        name: "Banani Army Stadium",
+   175→        division: "Dhaka", district: "Dhaka", upazila: "Banani",
+   176→        address: "Banani, Dhaka", capacity: 5000,
+   177→        facilities: JSON.stringify(["Floodlight", "Pavilion", "Parking", "Canteen", "First Aid"]),
+   178→        image: "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=800&q=70",
+   179→      },
+   180→    }),
+   181→    db.venue.create({
+   182→      data: {
+   183→        name: "Chittagong MA Aziz Stadium",
+   184→        division: "Chittagong", district: "Chattogram", upazila: "Double Mooring",
+   185→        address: "Patenga Road, Chattogram", capacity: 18000,
+   186→        facilities: JSON.stringify(["Floodlight", "Pavilion", "Scoreboard", "Parking", "Press Box"]),
+   187→        image: "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=800&q=70",
+   188→      },
+   189→    }),
+   190→    db.venue.create({
+   191→      data: {
+   192→        name: "Mirpur Indoor Stadium",
+   193→        division: "Dhaka", district: "Dhaka", upazila: "Mirpur",
+   194→        address: "Mirpur 10, Dhaka", capacity: 2500,
+   195→        facilities: JSON.stringify(["Indoor", "Floodlight", "Parking", "Canteen"]),
+   196→        image: "https://images.unsplash.com/photo-1517466787929-bc90951d0974?w=800&q=70",
+   197→      },
+   198→    }),
+   199→  ]);
+   200→
+   201→  console.log("Creating teams & players...");
+   202→  const teamDefs = [
+   203→    { name: "Dhaka Warriors", district: "Dhaka", managerIdx: 0, captain: "Rahim Uddin", sport: "FOOTBALL" },
+   204→    { name: "Mirpur FC", district: "Dhaka", managerIdx: 1, captain: "Kamal Hossain", sport: "FOOTBALL" },
+   205→    { name: "Uttara United", district: "Dhaka", managerIdx: 0, captain: "Sajjad Ali", sport: "FOOTBALL" },
+   206→    { name: "Banani Blasters", district: "Dhaka", managerIdx: 3, captain: "Faisal Rahman", sport: "FOOTBALL" },
+   207→    { name: "Chattogram Tigers", district: "Chattogram", managerIdx: 2, captain: "Sumon Barua", sport: "CRICKET" },
+   208→    { name: "Dhaka Dynamos CC", district: "Dhaka", managerIdx: 2, captain: "Imran Khan", sport: "CRICKET" },
+   209→    { name: "Mirpur Rovers", district: "Dhaka", managerIdx: 1, captain: "Jewel Mia", sport: "FOOTBALL" },
+   210→    { name: "Gulshan Strikers", district: "Dhaka", managerIdx: 3, captain: "Nayeem Islam", sport: "FOOTBALL" },
+   211→  ];
+   212→
+   213→  const teams: any[] = [];
+   214→  const footballNames = ["Rahim", "Karim", "Hasan", "Sakib", "Tamim", "Nasir", "Rubel", "Mashrafi", "Mehedi", "Liton", "Soumya", "Afif"];
+   215→  const cricketNames = ["Tamim Iqbal", "Shakib Al Hasan", "Mushfiqur Rahim", "Mahmudullah", "Litton Das", "Taskin Ahmed", "Mustafizur Rahman", "Najmul Shanto"];
+   216→  let teamIdx = 0;
+   217→  for (const td of teamDefs) {
+   218→    const mgr = tmUsers[td.managerIdx];
+   219→    const team = await db.team.create({
+   220→      data: {
+   221→        name: td.name,
+   222→        slug: slugify(td.name),
+   223→        captain: td.captain,
+   224→        managerId: mgr.profile.id,
+   225→        phone: "+88017" + (11000000 + teamIdx * 137),
+   226→        email: `info@${slugify(td.name)}.bd`,
+   227→        district: td.district,
+   228→        address: `${td.district}, Bangladesh`,
+   229→        description: `${td.name} — a community ${td.sport.toLowerCase()} team from ${td.district}.`,
+   230→      },
+   231→    });
+   232→    teams.push(team);
+   233→    // Add players
+   234→    const positions = td.sport === "CRICKET"
+   235→      ? ["BATTER", "BOWLER", "ALLROUNDER", "WICKETKEEPER", "BATTER", "BOWLER", "ALLROUNDER", "BATTER"]
+   236→      : ["GOALKEEPER", "DEFENDER", "DEFENDER", "MIDFIELDER", "MIDFIELDER", "FORWARD", "FORWARD", "DEFENDER"];
+   237→    const names = td.sport === "CRICKET" ? cricketNames : footballNames;
+   238→    for (let i = 0; i < 8; i++) {
+   239→      const verified = i < 6 ? "VERIFIED" : "PENDING";
+   240→      await db.player.create({
+   241→        data: {
+   242→          teamId: team.id,
+   243→          name: `${names[i % names.length]} ${td.name.split(" ")[0]}`,
+   244→          jerseyNumber: i === 0 ? 1 : (i + 1) * 2 - 1,
+   245→          position: positions[i],
+   246→          verificationStatus: verified,
+   247→          dateOfBirth: new Date(1995 + (i % 8), i % 12, (i % 27) + 1),
+   248→          phone: "+88017" + (11000000 + teamIdx * 137 + i),
+   249→          nidReference: verified === "VERIFIED" ? `NID-${10000 + teamIdx * 10 + i}` : null,
+   250→        },
+   251→      });
+   252→    }
+   253→    teamIdx++;
+   254→  }
+   255→
+   256→  console.log("Creating tournaments...");
+   257→  // ── Tournament 1: Ongoing Football League (Round Robin) ──
+   258→  const t1 = await db.tournament.create({
+   259→    data: {
+   260→      name: "Mirpur Community Football League 2025",
+   261→      slug: slugify("Mirpur Community Football League 2025"),
+   262→      sport: "FOOTBALL",
+   263→      description:
+   264→        "The flagship community football league of Mirpur, featuring 8 local clubs battling over 4 weeks for the championship trophy. Organized by Mirpur Sports Association.",
+   265→      organizerId: organizer1.id,
+   266→      venueId: venues[0].id,
+   267→      division: "Dhaka", district: "Dhaka", upazila: "Mirpur",
+   268→      location: "Mirpur, Dhaka",
+   269→      startDate: new Date(now.getTime() - 7 * DAYS),
+   270→      endDate: new Date(now.getTime() + 21 * DAYS),
+   271→      regStart: new Date(now.getTime() - 30 * DAYS),
+   272→      regDeadline: new Date(now.getTime() - 10 * DAYS),
+   273→      entryFee: 5000,
+   274→      maxTeams: 8,
+   275→      minTeams: 4,
+   276→      format: "ROUND_ROBIN",
+   277→      ageCategory: "OPEN",
+   278→      gender: "MALE",
+   279→      category: "COMMUNITY",
+   280→      rules: "11-a-side, 90 minutes, standard FIFA rules. Win = 3 pts, Draw = 1 pt.",
+   281→      prizeMoney: "৳1,00,000",
+   282→      status: "ONGOING",
+   283→      winPoints: 3, drawPoints: 1, lossPoints: 0,
+   284→    },
+   285→  });
+   286→
+   287→  // ── Tournament 2: Registration Open Cricket ──
+   288→  const t2 = await db.tournament.create({
+   289→    data: {
+   290→      name: "Dhanmondi T20 Cricket Cup 2025",
+   291→      slug: slugify("Dhanmondi T20 Cricket Cup 2025"),
+   292→      sport: "CRICKET",
+   293→      description:
+   294→        "A premier T20 tape-ball cricket tournament open to clubs across Dhaka. 8-team group + knockout format with prize money of ৳2,00,000.",
+   295→      organizerId: organizer1.id,
+   296→      venueId: venues[2].id,
+   297→      division: "Dhaka", district: "Dhaka", upazila: "Dhanmondi",
+   298→      location: "Dhanmondi, Dhaka",
+   299→      startDate: new Date(now.getTime() + 14 * DAYS),
+   300→      endDate: new Date(now.getTime() + 35 * DAYS),
+   301→      regStart: new Date(now.getTime() - 5 * DAYS),
+   302→      regDeadline: new Date(now.getTime() + 7 * DAYS),
+   303→      entryFee: 8000,
+   304→      maxTeams: 8,
+   305→      minTeams: 4,
+   306→      format: "GROUP_KNOCKOUT",
+   307→      ageCategory: "OPEN",
+   308→      gender: "MALE",
+   309→      category: "CLUB",
+   310→      rules: "T20, tape ball, 6 overs powerplay. Standard BCB rules.",
+   311→      prizeMoney: "৳2,00,000",
+   312→      status: "REGISTRATION_OPEN",
+   313→      winPoints: 2, drawPoints: 1, lossPoints: 0,
+   314→    },
+   315→  });
+   316→
+   317→  // ── Tournament 3: Completed Futsal ──
+   318→  const t3 = await db.tournament.create({
+   319→    data: {
+   320→      name: "Uttara Futsal Championship 2024",
+   321→      slug: slugify("Uttara Futsal Championship 2024"),
+   322→      sport: "FUTSAL",
+   323→      description:
+   324→        "Indoor 5-a-side futsal tournament held at Uttara Indoor Arena. The 2024 edition concluded with Banani Blasters crowned champions.",
+   325→      organizerId: organizer1.id,
+   326→      venueId: venues[1].id,
+   327→      division: "Dhaka", district: "Gazipur", upazila: "Uttara",
+   328→      location: "Uttara, Dhaka",
+   329→      startDate: new Date(now.getTime() - 60 * DAYS),
+   330→      endDate: new Date(now.getTime() - 40 * DAYS),
+   331→      regStart: new Date(now.getTime() - 90 * DAYS),
+   332→      regDeadline: new Date(now.getTime() - 65 * DAYS),
+   333→      entryFee: 3000,
+   334→      maxTeams: 6,
+   335→      minTeams: 4,
+   336→      format: "SINGLE_ELIMINATION",
+   337→      ageCategory: "YOUTH",
+   338→      gender: "MALE",
+   339→      category: "COMMUNITY",
+   340→      rules: "5-a-side futsal, 40 minutes (2x20).",
+   341→      prizeMoney: "৳50,000",
+   342→      status: "COMPLETED",
+   343→      winPoints: 3, drawPoints: 1, lossPoints: 0,
+   344→    },
+   345→  });
+   346→
+   347→  // ── Tournament 4: Pending approval ──
+   348→  const t4 = await db.tournament.create({
+   349→    data: {
+   350→      name: "Dhaka Corporate Badminton Open",
+   351→      slug: slugify("Dhaka Corporate Badminton Open"),
+   352→      sport: "BADMINTON",
+   353→      description:
+   354→        "Inter-corporate badminton championship for companies based in Dhaka. Singles & doubles events.",
+   355→      organizerId: organizer1.id,
+   356→      venueId: venues[5].id,
+   357→      division: "Dhaka", district: "Dhaka", upazila: "Mirpur",
+   358→      location: "Mirpur, Dhaka",
+   359→      startDate: new Date(now.getTime() + 30 * DAYS),
+   360→      endDate: new Date(now.getTime() + 33 * DAYS),
+   361→      regStart: new Date(now.getTime() + 3 * DAYS),
+   362→      regDeadline: new Date(now.getTime() + 25 * DAYS),
+   363→      entryFee: 2000,
+   364→      maxTeams: 16,
+   365→      minTeams: 8,
+   366→      format: "SINGLE_ELIMINATION",
+   367→      ageCategory: "OPEN",
+   368→      gender: "MIXED",
+   369→      category: "CORPORATE",
+   370→      rules: "Best of 3 games to 21. BWF rules.",
+   371→      prizeMoney: "৳30,000",
+   372→      status: "PENDING_APPROVAL",
+   373→      winPoints: 3, drawPoints: 1, lossPoints: 0,
+   374→    },
+   375→  });
+   376→
+   377→  console.log("Creating registrations, participants, matches, standings...");
+   378→  // Tournament 1 registrations & participants — 6 football teams
+   379→  const footballTeams = teams.filter((t) => t.name !== "Chattogram Tigers" && t.name !== "Dhaka Dynamos CC").slice(0, 6);
+   380→  for (let i = 0; i < footballTeams.length; i++) {
+   381→    const team = footballTeams[i];
+   382→    await db.tournamentRegistration.create({
+   383→      data: {
+   384→        tournamentId: t1.id,
+   385→        teamId: team.id,
+   386→        status: "APPROVED",
+   387→        paymentMethod: i % 2 === 0 ? "BKASH" : "CASH",
+   388→        paymentStatus: "VERIFIED",
+   389→        paymentRef: i % 2 === 0 ? `TX${1000 + i}` : null,
+   390→        registeredAt: new Date(now.getTime() - (25 - i) * DAYS),
+   391→      },
+   392→    });
+   393→    await db.tournamentParticipant.create({
+   394→      data: { tournamentId: t1.id, teamId: team.id, seed: i + 1 },
+   395→    });
+   396→    await db.standing.create({
+   397→      data: { tournamentId: t1.id, teamId: team.id, group: null },
+   398→    });
+   399→  }
+   400→
+   401→  // Tournament 2 — cricket registrations (mixed statuses)
+   402→  const cricketTeams = teams.filter((t) => t.name === "Chattogram Tigers" || t.name === "Dhaka Dynamos CC");
+   403→  const t2Teams = [...cricketTeams, ...footballTeams.slice(0, 3)];
+   404→  for (let i = 0; i < t2Teams.length; i++) {
+   405→    const status = i < 2 ? "APPROVED" : i < 4 ? "PENDING" : "REJECTED";
+   406→    await db.tournamentRegistration.create({
+   407→      data: {
+   408→        tournamentId: t2.id,
+   409→        teamId: t2Teams[i].id,
+   410→        status,
+   411→        rejectionReason: status === "REJECTED" ? "Incomplete player documents" : null,
+   412→        paymentMethod: i % 2 === 0 ? "NAGAD" : "BKASH",
+   413→        paymentStatus: status === "APPROVED" ? "VERIFIED" : "PENDING",
+   414→        registeredAt: new Date(now.getTime() - (4 - (i % 5)) * DAYS),
+   415→      },
+   416→    });
+   417→    if (status === "APPROVED") {
+   418→      await db.tournamentParticipant.create({
+   419→        data: { tournamentId: t2.id, teamId: t2Teams[i].id, seed: i + 1 },
+   420→      });
+   421→    }
+   422→  }
+   423→
+   424→  // Tournament 3 — completed futsal (4 teams)
+   425→  const t3Teams = footballTeams.slice(0, 4);
+   426→  for (const team of t3Teams) {
+   427→    await db.tournamentRegistration.create({
+   428→      data: { tournamentId: t3.id, teamId: team.id, status: "APPROVED", paymentStatus: "VERIFIED", paymentMethod: "CASH", registeredAt: new Date(now.getTime() - 80 * DAYS) },
+   429→    });
+   430→    await db.tournamentParticipant.create({ data: { tournamentId: t3.id, teamId: team.id } });
+   431→  }
+   432→
+   433→  console.log("Generating fixtures & results for Tournament 1 (round robin)...");
+   434→  // Round-robin matches among 6 teams — generate a subset with results
+   435→  const rr = footballTeams;
+   436→  const matches: { homeIdx: number; awayIdx: number }[] = [];
+   437→  for (let i = 0; i < rr.length; i++) {
+   438→    for (let j = i + 1; j < rr.length; j++) {
+   439→      matches.push({ homeIdx: i, awayIdx: j });
+   440→    }
+   441→  }
+   442→  // Assign referee to first referee profile
+   443→  const ref1 = refUsers[0].profile;
+   444→  const ref3 = refUsers[2].profile;
+   445→  let matchCounter = 0;
+   446→  for (let m = 0; m < matches.length; m++) {
+   447→    const { homeIdx, awayIdx } = matches[m];
+   448→    const home = rr[homeIdx];
+   449→    const away = rr[awayIdx];
+   450→    const completed = m < 8; // first 8 completed
+   451→    const date = new Date(now.getTime() - (7 - m) * DAYS + m * 3 * 60 * 60 * 1000);
+   452→    const venue = venues[m % 2 === 0 ? 0 : 3];
+   453→    const homeScore = completed ? (2 + ((m * 3) % 3)) : 0;
+   454→    const awayScore = completed ? ((m * 2) % 4) : 0;
+   455→    const match = await db.match.create({
+   456→      data: {
+   457→        matchCode: `M${String(m + 1).padStart(3, "0")}`,
+   458→        tournamentId: t1.id,
+   459→        round: "GROUP",
+   460→        homeTeamId: home.id,
+   461→        awayTeamId: away.id,
+   462→        venueId: venue.id,
+   463→        refereeId: m % 2 === 0 ? ref1.id : ref3.id,
+   464→        matchDate: completed ? new Date(now.getTime() - (8 - m) * DAYS) : new Date(now.getTime() + (m - 7) * DAYS),
+   465→        status: completed ? "COMPLETED" : "SCHEDULED",
+   466→        homeScore,
+   467→        awayScore,
+   468→        resultStatus: completed ? "APPROVED" : "NONE",
+   469→        winnerTeamId: completed ? (homeScore > awayScore ? home.id : awayScore > homeScore ? away.id : null) : null,
+   470→      },
+   471→    });
+   472→    if (m % 2 === 0 && match.refereeId) {
+   473→      await db.refereeAssignment.create({
+   474→        data: { refereeId: ref1.id, matchId: match.id },
+   475→      });
+   476→    } else if (match.refereeId) {
+   477→      await db.refereeAssignment.create({
+   478→        data: { refereeId: ref3.id, matchId: match.id },
+   479→      });
+   480→    }
+   481→    if (completed) {
+   482→      // Update standings
+   483→      const hs = await db.standing.findFirst({ where: { tournamentId: t1.id, teamId: home.id } });
+   484→      const as = await db.standing.findFirst({ where: { tournamentId: t1.id, teamId: away.id } });
+   485→      if (hs && as) {
+   486→        await db.standing.update({
+   487→          where: { id: hs.id },
+   488→          data: {
+   489→            played: { increment: 1 },
+   490→            won: { increment: homeScore > awayScore ? 1 : 0 },
+   491→            drawn: { increment: homeScore === awayScore ? 1 : 0 },
+   492→            lost: { increment: homeScore < awayScore ? 1 : 0 },
+   493→            goalsFor: { increment: homeScore },
+   494→            goalsAgainst: { increment: awayScore },
+   495→            points: { increment: homeScore > awayScore ? 3 : homeScore === awayScore ? 1 : 0 },
+   496→          },
+   497→        });
+   498→        await db.standing.update({
+   499→          where: { id: as.id },
+   500→          data: {
+   501→            played: { increment: 1 },
+   502→            won: { increment: awayScore > homeScore ? 1 : 0 },
+   503→            drawn: { increment: homeScore === awayScore ? 1 : 0 },
+   504→            lost: { increment: awayScore < homeScore ? 1 : 0 },
+   505→            goalsFor: { increment: awayScore },
+   506→            goalsAgainst: { increment: homeScore },
+   507→            points: { increment: awayScore > homeScore ? 3 : homeScore === awayScore ? 1 : 0 },
+   508→          },
+   509→        });
+   510→      }
+   511→    }
+   512→    matchCounter++;
+   513→  }
+   514→
+   515→  console.log("Generating completed futsal bracket for Tournament 3...");
+   516→  // Single elimination — 2 semis + final, all completed
+   517→  const fTeams = t3Teams;
+   518→  // Semi 1: team0 vs team1
+   519→  const sf1 = await db.match.create({
+   520→    data: {
+   521→      matchCode: "SF1", tournamentId: t3.id, round: "SEMI_FINAL",
+   522→      homeTeamId: fTeams[0].id, awayTeamId: fTeams[1].id,
+   523→      venueId: venues[1].id, matchDate: new Date(now.getTime() - 45 * DAYS),
+   524→      status: "COMPLETED", homeScore: 3, awayScore: 1, resultStatus: "APPROVED",
+   525→      winnerTeamId: fTeams[0].id,
+   526→    },
+   527→  });
+   528→  const sf2 = await db.match.create({
+   529→    data: {
+   530→      matchCode: "SF2", tournamentId: t3.id, round: "SEMI_FINAL",
+   531→      homeTeamId: fTeams[2].id, awayTeamId: fTeams[3].id,
+   532→      venueId: venues[1].id, matchDate: new Date(now.getTime() - 44 * DAYS),
+   533→      status: "COMPLETED", homeScore: 2, awayScore: 4, resultStatus: "APPROVED",
+   534→      winnerTeamId: fTeams[3].id,
+   535→    },
+   536→  });
+   537→  const final = await db.match.create({
+   538→    data: {
+   539→      matchCode: "FIN", tournamentId: t3.id, round: "FINAL",
+   540→      homeTeamId: fTeams[0].id, awayTeamId: fTeams[3].id,
+   541→      venueId: venues[1].id, matchDate: new Date(now.getTime() - 40 * DAYS),
+   542→      status: "COMPLETED", homeScore: 2, awayScore: 3, resultStatus: "APPROVED",
+   543→      winnerTeamId: fTeams[3].id, playerOfMatch: "Faisal Rahman",
+   544→    },
+   545→  });
+   546→
+   547→  console.log("Creating announcements...");
+   548→  await db.announcement.create({
+   549→    data: {
+   550→      tournamentId: t1.id, authorId: orgUser1.id,
+   551→      title: "Match Day 3 Schedule Released",
+   552→      content: "Round 3 fixtures have been published. Check the fixtures tab for your match time and venue. Players must arrive 30 minutes before kick-off.",
+   553→      pinned: true,
+   554→    },
+   555→  });
+   556→  await db.announcement.create({
+   557→    data: {
+   558→      tournamentId: t1.id, authorId: orgUser1.id,
+   559→      title: "Floodlight Maintenance Notice",
+   560→      content: "Mirpur Bangla College Ground floodlights will be serviced on matchday eve. Evening matches may shift by 30 minutes.",
+   561→    },
+   562→  });
+   563→  await db.announcement.create({
+   564→    data: {
+   565→      tournamentId: t2.id, authorId: orgUser1.id,
+   566→      title: "Registration Open — Dhanmondi T20 Cup",
+   567→      content: "Registrations are now open! Limited to 8 teams. Entry fee ৳8,000 via bKash/Nagad. Deadline in 7 days.",
+   568→      pinned: true,
+   569→    },
+   570→  });
+   571→
+   572→  console.log("Creating notifications...");
+   573→  // Notify team managers about registration statuses
+   574→  await db.notification.create({
+   575→    data: { userId: tmUsers[0].user.id, title: "Registration Approved", message: "Dhaka Warriors has been approved for Mirpur Community Football League 2025.", type: "REGISTRATION", link: "/team/tournaments" },
+   576→  });
+   577→  await db.notification.create({
+   578→    data: { userId: tmUsers[0].user.id, title: "Upcoming Match", message: "Your next match is tomorrow at 4:00 PM at Mirpur Bangla College Ground.", type: "MATCH", link: "/team/fixtures" },
+   579→  });
+   580→  await db.notification.create({
+   581→    data: { userId: refUsers[0].user.id, title: "Referee Assignment", message: "You have been assigned to Match M001 — Dhaka Warriors vs Mirpur FC.", type: "MATCH", link: "/referee/matches" },
+   582→  });
+   583→  await db.notification.create({
+   584→    data: { userId: orgUser1.id, title: "Pending Approvals", message: "2 new team registrations awaiting your review for Dhanmondi T20 Cricket Cup.", type: "REGISTRATION", link: "/organizer/tournaments" },
+   585→  });
+   586→  await db.notification.create({
+   587→    data: { userId: admin.id, title: "Organizer Approval", message: "Rina Akter (Uttara Sports Club) has applied for organizer approval.", type: "SYSTEM", link: "/admin/users" },
+   588→  });
+   589→
+   590→  console.log("Creating disputes & audit logs...");
+   591→  await db.dispute.create({
+   592→    data: {
+   593→      tournamentId: t1.id, matchId: null, raisedById: tmUsers[1].user.id,
+   594→      type: "REFEREE_ISSUE", title: "Questionable offside call in Match M002",
+   595→      description: "The referee disallowed a clear goal in the second half of our match against Uttara United. Requesting review.",
+   596→      status: "OPEN",
+   597→    },
+   598→  });
+   599→  await db.dispute.create({
+   600→    data: {
+   601→      tournamentId: t1.id, raisedById: tmUsers[0].user.id,
+   602→      type: "FIXTURE_ISSUE", title: "Short rest between matches",
+   603→      description: "Our team has back-to-back matches with only 18 hours gap. Requesting reschedule.",
+   604→      status: "UNDER_REVIEW",
+   605→    },
+   606→  });
+   607→
+   608→  await db.auditLog.create({
+   609→    data: { userId: admin.id, action: "APPROVED_ORGANIZER", entity: "OrganizerProfile", entityId: organizer1.id, detail: "Approved organizer: Jubair Ahmed (Mirpur Sports Association)" },
+   610→  });
+   611→  await db.auditLog.create({
+   612→    data: { userId: orgUser1.id, action: "TOURNAMENT_STATUS_CHANGED", entity: "Tournament", entityId: t1.id, detail: "Status changed to ONGOING" },
+   613→  });
+   614→  await db.auditLog.create({
+   615→    data: { userId: refUsers[0].user.id, action: "RESULT_SUBMITTED", entity: "Match", detail: "Submitted result for Match M001" },
+   616→  });
+   617→  await db.auditLog.create({
+   618→    data: { userId: orgUser1.id, action: "RESULT_APPROVED", entity: "Match", detail: "Approved Match M001 result — standings updated" },
+   619→  });
+   620→
+   621→  console.log("✅ Seed complete!");
+   622→  console.log("\n── Demo Logins ──────────────────────────────");
+   623→  console.log("Admin      admin@tourney.bd / admin123");
+   624→  console.log("Organizer  jubair@mirpursports.bd / organ123");
+   625→  console.log("Manager    rahim@dhakawarriors.bd / manage123");
+   626→  console.log("Referee    ref.rahman@tourney.bd / refer123");
+   627→  console.log("─────────────────────────────────────────────\n");
+   628→}
+   629→
+   630→main()
+   631→  .catch((e) => {
+   632→    console.error(e);
+   633→    process.exit(1);
+   634→  })
+   635→  .finally(async () => {
+   636→    await db.$disconnect();
+   637→  });
+   638→
