@@ -22,13 +22,20 @@ export async function GET() {
     const [tournaments, matches] = await Promise.all([
       tournamentIds.length
         ? db.tournament.findMany({ where: { id: { in: tournamentIds } }, select: { id: true, name: true } })
-        : Promise.resolve([]),
+        : Promise.resolve([] as { id: string; name: string }[]),
       matchIds.length
         ? db.match.findMany({
             where: { id: { in: matchIds } },
             select: { id: true, matchCode: true, homeTeam: { select: { name: true } }, awayTeam: { select: { name: true } } },
           })
-        : Promise.resolve([]),
+        : Promise.resolve(
+            [] as {
+              id: string;
+              matchCode: string | null;
+              homeTeam: { name: string } | null;
+              awayTeam: { name: string } | null;
+            }[],
+          ),
     ]);
     const tournamentMap = new Map(tournaments.map((t) => [t.id, t]));
     const matchMap = new Map(matches.map((m) => [m.id, m]));

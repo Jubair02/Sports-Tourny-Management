@@ -7,9 +7,11 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { UserActions } from "@/components/admin/user-actions";
+import { UserFormDialog } from "@/components/admin/user-form-dialog";
 import { ROLE_LABELS } from "@/lib/nav";
 import { formatDate } from "@/lib/helpers";
 import { ROLES } from "@/lib/constants";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,7 @@ export default async function AdminUsersPage({
 }) {
   const sp = await searchParams;
   const role = sp.role;
+  const session = await getSession();
 
   const users = await db.user.findMany({
     where: role ? { role } : undefined,
@@ -52,7 +55,9 @@ export default async function AdminUsersPage({
       <PageHeader
         title="Users"
         description="All platform accounts — organizers, team managers, referees, and admins."
-      />
+      >
+        <UserFormDialog mode="create" />
+      </PageHeader>
 
       <div className="flex flex-wrap items-center gap-2">
         <Link href="/admin/users">
@@ -137,9 +142,14 @@ export default async function AdminUsersPage({
                         <TableCell className="text-right">
                           <UserActions
                             userId={u.id}
+                            userName={u.name}
+                            userEmail={u.email}
+                            userPhone={u.phone}
+                            userRole={u.role}
                             currentStatus={u.status}
                             organizerProfileId={u.organizerProfile?.id}
                             isPendingOrganizer={isPendingOrganizer}
+                            isSelf={session?.id === u.id}
                           />
                         </TableCell>
                       </TableRow>

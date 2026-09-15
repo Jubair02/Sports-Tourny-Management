@@ -4,7 +4,7 @@ import { apiRequireRole, json, errorResponse } from "@/lib/auth";
 import { ROLES, TOURNAMENT_STATUS, TOURNAMENT_STATUS_META } from "@/lib/constants";
 import { logAudit, notify } from "@/lib/helpers";
 
-const VALID_STATUSES = new Set(Object.values(TOURNAMENT_STATUS));
+const VALID_STATUSES = new Set<string>(Object.values(TOURNAMENT_STATUS));
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {

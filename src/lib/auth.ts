@@ -4,10 +4,23 @@ import { db } from "./db";
 import { ROLES, type Role } from "./constants";
 
 const SESSION_COOKIE = "tourney_session";
-const SECRET = process.env.AUTH_SECRET || "tourney-platform-secret-change-me";
+
+// Never fall back to a hardcoded secret: a known secret lets anyone forge a
+// session cookie for any user. Require AUTH_SECRET to be set to a strong value.
+// Resolved lazily so importing this module never crashes at build/collection time.
+const INSECURE_DEFAULT = "tourney-platform-secret-change-me";
+function getSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret || secret === INSECURE_DEFAULT || secret.length < 32) {
+    throw new Error(
+      "AUTH_SECRET is missing or too weak. Set AUTH_SECRET to a random string of at least 32 characters (see .env.example).",
+    );
+  }
+  return secret;
+}
 
 function sign(payload: string) {
-  const hmac = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
+  const hmac = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
   return `${payload}.${hmac}`;
 }
 
@@ -15,7 +28,7 @@ function verify(token: string): string | null {
   try {
     const [payload, hmac] = token.split(".");
     if (!payload || !hmac) return null;
-    const expected = crypto.createHmac("sha256", SECRET).update(payload).digest("hex");
+    const expected = crypto.createHmac("sha256", getSecret()).update(payload).digest("hex");
     if (hmac !== expected) return null;
     return payload;
   } catch {
@@ -57,7 +70,8 @@ export async function setSession(userId: string) {
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    // Only send the cookie over HTTPS in production; keep it off in local dev (http).
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 24 * 7, // 7 days
   });

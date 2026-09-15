@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { json, errorResponse } from "@/lib/auth";
 import { ensureOrganizerOfTournament } from "@/lib/api-guard";
-import { recalcStandings } from "@/lib/standings";
+import { recalcStandings, advanceKnockout } from "@/lib/standings";
 import { logAudit, notify } from "@/lib/helpers";
 
 // POST — approve or reject a SUBMITTED referee result.
@@ -54,6 +54,10 @@ export async function POST(
 
       // Recalculate standings from APPROVED + COMPLETED matches
       await recalcStandings(id);
+
+      // For knockout brackets, promote the winner into the next round once the
+      // current round is fully decided (no-op for round-robin / group formats).
+      await advanceKnockout(id);
 
       await logAudit({
         userId: session!.id,

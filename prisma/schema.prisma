@@ -1,12 +1,12 @@
 // Sports Tournament Management Platform — Prisma schema
-// SQLite provider. Enums stored as String for SQLite compatibility.
+// PostgreSQL (Neon). Enums stored as String for portability.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -330,4 +330,12 @@ model AuditLog {
   detail    String?
   createdAt DateTime @default(now())
   user      User?    @relation(fields: [userId], references: [id])
+}
+
+// ─── Platform Settings ────────────────────────────────────────────────────────
+// Simple key/value store for admin-configurable platform settings.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

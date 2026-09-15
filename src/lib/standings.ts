@@ -58,6 +58,103 @@ export async function recalcStandings(tournamentId: string) {
   });
 }
 
+// Knockout rounds in order of progression (smallest bracket last).
+const KNOCKOUT_ROUND_ORDER = [
+  "ROUND_64", "ROUND_32", "ROUND_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL",
+] as const;
+
+/**
+ * Advance a single-elimination bracket: once every match in the current round has
+ * an approved winner, create the next round by pairing those winners in order.
+ * Idempotent — does nothing if the next round already exists or the round is
+ * incomplete. When the FINAL is decided, marks the tournament COMPLETED.
+ *
+ * Returns a short summary of what happened (for logging / API responses).
+ */
+export async function advanceKnockout(
+  tournamentId: string,
+): Promise<{ advanced: boolean; round?: string; created?: number; champion?: string | null }> {
+  const tournament = await db.tournament.findUnique({ where: { id: tournamentId } });
+  if (!tournament) return { advanced: false };
+  // Group stage → knockout seeding is not auto-derived; only pure knockout rounds advance here.
+  if (tournament.format !== "SINGLE_ELIMINATION") return { advanced: false };
+
+  const matches = await db.match.findMany({
+    where: { tournamentId, round: { in: KNOCKOUT_ROUND_ORDER as unknown as string[] } },
+    orderBy: [{ round: "asc" }, { matchCode: "asc" }],
+  });
+  if (matches.length === 0) return { advanced: false };
+
+  // Find the furthest round that currently has matches.
+  const roundsPresent = KNOCKOUT_ROUND_ORDER.filter((r) => matches.some((m) => m.round === r));
+  const currentRound = roundsPresent[roundsPresent.length - 1];
+  const currentMatches = matches
+    .filter((m) => m.round === currentRound)
+    .sort((a, b) => (a.matchCode ?? "").localeCompare(b.matchCode ?? ""));
+
+  // Every match in the round must have an approved winner (byes are pre-approved).
+  const allDecided = currentMatches.every(
+    (m) => m.resultStatus === "APPROVED" && m.winnerTeamId,
+  );
+  if (!allDecided) return { advanced: false };
+
+  // Reached the final: crown the champion and close the tournament.
+  if (currentRound === "FINAL") {
+    const champion = currentMatches[0]?.winnerTeamId ?? null;
+    if (tournament.status !== "COMPLETED") {
+      await db.tournament.update({ where: { id: tournamentId }, data: { status: "COMPLETED" } });
+    }
+    return { advanced: false, round: "FINAL", champion };
+  }
+
+  const nextRound = KNOCKOUT_ROUND_ORDER[KNOCKOUT_ROUND_ORDER.indexOf(currentRound) + 1];
+  // Already generated (e.g. a re-approval) — nothing to do.
+  if (matches.some((m) => m.round === nextRound)) return { advanced: false };
+
+  const winners = currentMatches.map((m) => m.winnerTeamId!).filter(Boolean);
+  if (winners.length < 2) {
+    // Single winner but not the final round — collapse straight to a final.
+    if (winners.length === 1 && nextRound !== "FINAL") return { advanced: false };
+  }
+
+  // Continue match numbering after the highest existing code.
+  const usedNumbers = matches
+    .map((m) => Number((m.matchCode ?? "").replace(/\D/g, "")))
+    .filter((n) => !Number.isNaN(n));
+  let code = (usedNumbers.length ? Math.max(...usedNumbers) : 0) + 1;
+
+  const venueId = tournament.venueId ?? undefined;
+  let created = 0;
+  for (let i = 0; i < winners.length; i += 2) {
+    const home = winners[i];
+    const away = i + 1 < winners.length ? winners[i + 1] : null;
+    await db.match.create({
+      data: {
+        matchCode: `M${String(code).padStart(3, "0")}`,
+        tournamentId,
+        round: nextRound,
+        homeTeamId: home,
+        awayTeamId: away ?? undefined,
+        venueId,
+        // An unpaired winner gets a bye: auto-completed and carried forward.
+        status: away ? "SCHEDULED" : "COMPLETED",
+        resultStatus: away ? "NONE" : "APPROVED",
+        winnerTeamId: away ? undefined : home,
+      },
+    });
+    code++;
+    created++;
+  }
+
+  // A bye in the freshly created round may itself let the bracket advance again.
+  if (created > 0) {
+    const followUp = await advanceKnockout(tournamentId);
+    return { advanced: true, round: nextRound, created, champion: followUp.champion };
+  }
+
+  return { advanced: true, round: nextRound, created };
+}
+
 // Generate a single-elimination bracket from a list of participant teamIds.
 // Creates matches with placeholder team slots if needed (bye handling: if odd, last team gets a bye).
 export async function generateSingleElimination(tournamentId: string, teamIds: string[], venueId?: string) {

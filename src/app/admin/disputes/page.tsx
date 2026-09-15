@@ -52,7 +52,7 @@ export default async function AdminDisputesPage({
           where: { id: { in: tournamentIds } },
           select: { id: true, name: true },
         })
-      : Promise.resolve([]),
+      : Promise.resolve([] as { id: string; name: string }[]),
     matchIds.length
       ? db.match.findMany({
           where: { id: { in: matchIds } },
@@ -63,7 +63,14 @@ export default async function AdminDisputesPage({
             awayTeam: { select: { name: true } },
           },
         })
-      : Promise.resolve([]),
+      : Promise.resolve(
+          [] as {
+            id: string;
+            matchCode: string | null;
+            homeTeam: { name: string } | null;
+            awayTeam: { name: string } | null;
+          }[],
+        ),
   ]);
 
   const tournamentMap = new Map(tournaments.map((t) => [t.id, t]));

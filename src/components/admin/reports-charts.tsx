@@ -63,7 +63,11 @@ export function ReportsCharts({
   }
 
   const chartData = data.map((d) => ({ name: d.name, count: d.count ?? d.value ?? 0 }));
-  const colorMap = kind === "sport" ? SPORT_COLORS : DISTRICT_COLORS;
+  // Sports have named colors (fall back to the palette); districts just cycle the palette.
+  const barColor = (name: string, i: number): string =>
+    (kind === "sport" ? SPORT_COLORS[name] : undefined) ??
+    DISTRICT_COLORS[i % DISTRICT_COLORS.length] ??
+    "#10b981";
 
   return (
     <div className="h-64 w-full">
@@ -86,7 +90,7 @@ export function ReportsCharts({
           />
           <Bar dataKey="count" radius={[6, 6, 0, 0]}>
             {chartData.map((entry, i) => (
-              <Cell key={i} fill={colorMap[entry.name] ?? colorMap[i % colorMap.length] ?? "#10b981"} />
+              <Cell key={i} fill={barColor(entry.name, i)} />
             ))}
           </Bar>
         </BarChart>

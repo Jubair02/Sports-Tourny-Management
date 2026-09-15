@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { GenerateFixturesButton } from "@/components/organizer/generate-fixtures-button";
+import { ResetFixturesButton } from "@/components/organizer/reset-fixtures-button";
 import { EditMatchDialog } from "@/components/organizer/edit-match-dialog";
 import { AssignRefereeDialog } from "@/components/organizer/assign-referee-dialog";
 import {
@@ -64,12 +65,13 @@ export default async function FixturesPage({ params }: { params: Promise<{ id: s
     matches.length === 0 &&
     approvedRegs >= 2;
   const disabledReason = matches.length > 0
-    ? "Matches already exist — delete them before regenerating."
+    ? "Matches already exist — use Reset Fixtures to clear them before regenerating."
     : tournament.status !== TOURNAMENT_STATUS.REGISTRATION_CLOSED && tournament.status !== TOURNAMENT_STATUS.REGISTRATION_OPEN
     ? `Tournament status is ${tournament.status}. Must be Registration Open or Closed.`
     : approvedRegs < 2
     ? `Only ${approvedRegs} approved team(s) — need at least 2.`
     : undefined;
+  const canReset = matches.length > 0 && tournament.status !== TOURNAMENT_STATUS.COMPLETED;
 
   return (
     <div className="space-y-6">
@@ -83,6 +85,13 @@ export default async function FixturesPage({ params }: { params: Promise<{ id: s
         }
         description={`Manage match schedule & referee assignments for ${tournament.name}.`}
       >
+        {canReset && (
+          <ResetFixturesButton
+            tournamentId={id}
+            tournamentName={tournament.name}
+            matchCount={matches.length}
+          />
+        )}
         <GenerateFixturesButton
           tournamentId={id}
           tournamentName={tournament.name}

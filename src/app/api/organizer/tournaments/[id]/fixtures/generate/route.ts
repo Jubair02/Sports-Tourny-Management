@@ -42,7 +42,8 @@ export async function POST(
 
     const approvedRegs = await db.tournamentRegistration.findMany({
       where: { tournamentId: id, status: "APPROVED" },
-      include: { team: true },
+      // Load the manager's user so we can notify them below (r.team.manager.user).
+      include: { team: { include: { manager: { include: { user: true } } } } },
       orderBy: { registeredAt: "asc" },
     });
     if (approvedRegs.length < 2) {
@@ -121,5 +122,56 @@ export async function POST(
     if (e instanceof Response) return e;
     console.error("organizer fixtures generate POST", e);
     return errorResponse("Failed to generate fixtures", 500);
+  }
+}
+
+// DELETE — reset all fixtures for a tournament so they can be regenerated.
+// Removes every match (cascading to match events & referee assignments) and
+// standings, then moves the tournament back to REGISTRATION_CLOSED.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const { session, error } = await ensureOrganizerOfTournament(id);
+    if (error) return error;
+
+    const tournament = await db.tournament.findUnique({ where: { id } });
+    if (!tournament) return errorResponse("Tournament not found", 404);
+
+    if (tournament.status === TOURNAMENT_STATUS.COMPLETED) {
+      return errorResponse("A completed tournament's fixtures cannot be reset.", 409);
+    }
+
+    const matchCount = await db.match.count({ where: { tournamentId: id } });
+    if (matchCount === 0) {
+      return errorResponse("There are no fixtures to reset.", 400);
+    }
+
+    // Match deletion cascades to MatchEvent and RefereeAssignment (onDelete: Cascade).
+    // Standings have no cascade from Match, so clear them explicitly.
+    await db.$transaction([
+      db.standing.deleteMany({ where: { tournamentId: id } }),
+      db.match.deleteMany({ where: { tournamentId: id } }),
+      db.tournament.update({
+        where: { id },
+        data: { status: TOURNAMENT_STATUS.REGISTRATION_CLOSED },
+      }),
+    ]);
+
+    await logAudit({
+      userId: session!.id,
+      action: "FIXTURES_RESET",
+      entity: "Tournament",
+      entityId: id,
+      detail: `Reset ${matchCount} fixture(s) for "${tournament.name}"`,
+    });
+
+    return json({ ok: true, deleted: matchCount });
+  } catch (e) {
+    if (e instanceof Response) return e;
+    console.error("organizer fixtures DELETE", e);
+    return errorResponse("Failed to reset fixtures", 500);
   }
 }

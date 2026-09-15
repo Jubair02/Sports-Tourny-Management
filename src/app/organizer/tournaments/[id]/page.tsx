@@ -82,7 +82,7 @@ export default async function TournamentOverviewPage({
     }),
   ]);
 
-  const stepIndex = STATUS_STEPS.indexOf(tournament.status as TOURNAMENT_STATUS);
+  const stepIndex = (STATUS_STEPS as string[]).indexOf(tournament.status);
   const isCancelled = tournament.status === TOURNAMENT_STATUS.CANCELLED;
 
   return (

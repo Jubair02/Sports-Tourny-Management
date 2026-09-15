@@ -8,7 +8,7 @@ async function ensurePlayerOwner(playerId: string) {
   if (!session) return { session: null, error: errorResponse("Unauthorized", 401) };
   if (!["TEAM_MANAGER", "ADMIN"].includes(session.role)) return { session, error: errorResponse("Forbidden", 403) };
   if (session.role === "ADMIN") {
-    const player = await db.player.findUnique({ where: { id: playerId }, select: { id: true, teamId: true } });
+    const player = await db.player.findUnique({ where: { id: playerId }, select: { id: true, teamId: true, name: true } });
     if (!player) return { session, error: errorResponse("Player not found", 404) };
     return { session, player, error: null };
   }

@@ -5,7 +5,7 @@ import { ensureOrganizerOfTournament } from "@/lib/api-guard";
 import { REGISTRATION_STATUS } from "@/lib/constants";
 import { logAudit, notify } from "@/lib/helpers";
 
-const VALID = new Set(Object.values(REGISTRATION_STATUS));
+const VALID = new Set<string>(Object.values(REGISTRATION_STATUS));
 
 export async function PATCH(
   req: NextRequest,

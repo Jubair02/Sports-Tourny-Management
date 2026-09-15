@@ -62,13 +62,20 @@ export default async function DisputesPage() {
   const [dTour, dMatch] = await Promise.all([
     dtourIds.length
       ? db.tournament.findMany({ where: { id: { in: dtourIds } }, select: { id: true, name: true } })
-      : Promise.resolve([]),
+      : Promise.resolve([] as { id: string; name: string }[]),
     dmatchIds.length
       ? db.match.findMany({
           where: { id: { in: dmatchIds } },
           select: { id: true, matchCode: true, homeTeam: { select: { name: true } }, awayTeam: { select: { name: true } } },
         })
-      : Promise.resolve([]),
+      : Promise.resolve(
+          [] as {
+            id: string;
+            matchCode: string | null;
+            homeTeam: { name: string } | null;
+            awayTeam: { name: string } | null;
+          }[],
+        ),
   ]);
   const tournamentMap = new Map(dTour.map((t) => [t.id, t]));
   const matchMap = new Map(dMatch.map((m) => [m.id, m]));
