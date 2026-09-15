@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="TourneyBD trophy">
+  <defs>
+    <linearGradient id="tb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#12A06A"/>
+      <stop offset="1" stop-color="#07724A"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7.5" fill="url(#tb)"/>
+  <g fill="none" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round">
+    <path d="M10 8.8H7.9A1.5 1.5 0 0 0 6.4 10.3v1.1a4.3 4.3 0 0 0 4.3 4.3"/>
+    <path d="M22 8.8h2.1a1.5 1.5 0 0 1 1.5 1.5v1.1a4.3 4.3 0 0 1-4.3 4.3"/>
+  </g>
+  <path fill="#FFFFFF" d="M9.7 6.2h12.6v5.6c0 3.48-2.82 6.3-6.3 6.3s-6.3-2.82-6.3-6.3V6.2z"/>
+  <rect x="14.5" y="17.6" width="3" height="3.6" fill="#FFFFFF"/>
+  <rect x="9.3" y="21" width="13.4" height="3.5" rx="1.4" fill="#FFFFFF"/>
+</svg>

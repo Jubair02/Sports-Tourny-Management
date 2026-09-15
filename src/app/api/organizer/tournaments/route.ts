@@ -6,6 +6,7 @@ import {
   SPORTS, TOURNAMENT_FORMATS, TOURNAMENT_CATEGORIES, BANGLADESH_DIVISIONS,
 } from "@/lib/constants";
 import { slugify, logAudit, notify } from "@/lib/helpers";
+import { getSettings } from "@/lib/settings";
 
 export async function GET() {
   try {
@@ -36,21 +37,41 @@ export async function POST(req: NextRequest) {
   try {
     const { session, prof, error } = await getOrganizerContext();
     if (error) return error;
-    if (!prof) return errorResponse("Organizer profile required", 403); // ADMIN cannot create on behalf (no organizer linkage)
 
     const body = await req.json();
     const {
       name, sport, description, division, district, upazila, location, venueId,
       startDate, endDate, regStart, regDeadline, entryFee, maxTeams, minTeams,
-      format, ageCategory, gender, rules, prizeMoney, category,
+      format, ageCategory, gender, rules, prizeMoney, category, organizerId,
     } = body as {
       name?: string; sport?: string; description?: string;
       division?: string; district?: string; upazila?: string; location?: string; venueId?: string;
       startDate?: string; endDate?: string; regStart?: string; regDeadline?: string;
       entryFee?: number; maxTeams?: number; minTeams?: number;
       format?: string; ageCategory?: string; gender?: string;
-      rules?: string; prizeMoney?: string; category?: string;
+      rules?: string; prizeMoney?: string; category?: string; organizerId?: string;
     };
+
+    // Resolve the owning organizer. An organizer owns their own tournaments; an
+    // admin creates on behalf of an organizer they pick (organizerId required).
+    let ownerOrganizerId: string;
+    if (prof) {
+      ownerOrganizerId = prof.id;
+    } else {
+      // ADMIN path (getOrganizerContext returns prof=null for admins).
+      if (!organizerId) {
+        return errorResponse("Select an organizer to own this tournament", 400);
+      }
+      const owner = await db.organizerProfile.findUnique({
+        where: { id: organizerId },
+        select: { id: true, approvalStatus: true },
+      });
+      if (!owner) return errorResponse("Organizer not found", 404);
+      if (owner.approvalStatus !== "APPROVED") {
+        return errorResponse("Chosen organizer is not approved", 400);
+      }
+      ownerOrganizerId = owner.id;
+    }
 
     if (!name?.trim() || !sport || !description?.trim()) {
       return errorResponse("Name, sport and description are required", 400);
@@ -88,13 +109,19 @@ export async function POST(req: NextRequest) {
       slug = `${slugify(name!.trim())}-${suffix++}`;
     }
 
+    // Apply platform-wide scoring defaults set by the admin.
+    const platform = await getSettings();
+
     const tournament = await db.tournament.create({
       data: {
+        winPoints: platform.winPoints,
+        drawPoints: platform.drawPoints,
+        lossPoints: platform.lossPoints,
         name: name!.trim(),
         slug,
         sport,
         description: description!.trim(),
-        organizerId: prof.id,
+        organizerId: ownerOrganizerId,
         venueId: venueId || null,
         division: division || null,
         district: district || null,

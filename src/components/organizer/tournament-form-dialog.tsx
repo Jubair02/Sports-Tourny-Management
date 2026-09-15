@@ -28,11 +28,21 @@ const plusDays = (n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-export function TournamentFormDialog({ trigger }: { trigger?: React.ReactNode }) {
+export function TournamentFormDialog({
+  trigger,
+  organizers,
+}: {
+  trigger?: React.ReactNode;
+  // When provided, the dialog runs in admin mode: the admin picks which organizer
+  // owns the tournament, and it redirects back to the admin list on success.
+  organizers?: { id: string; name: string }[];
+}) {
   const router = useRouter();
+  const isAdmin = Array.isArray(organizers);
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [venues, setVenues] = useState<Venue[]>([]);
+  const [organizerId, setOrganizerId] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +82,10 @@ export function TournamentFormDialog({ trigger }: { trigger?: React.ReactNode })
       toast.error("Name and description are required");
       return;
     }
+    if (isAdmin && !organizerId) {
+      toast.error("Select an organizer to own this tournament");
+      return;
+    }
     startTransition(async () => {
       try {
         const res = await fetch("/api/organizer/tournaments", {
@@ -91,6 +105,7 @@ export function TournamentFormDialog({ trigger }: { trigger?: React.ReactNode })
             rules: rules || undefined,
             prizeMoney: prizeMoney || undefined,
             category: category || undefined,
+            organizerId: isAdmin ? organizerId : undefined,
           }),
         });
         const data = await res.json();
@@ -103,9 +118,9 @@ export function TournamentFormDialog({ trigger }: { trigger?: React.ReactNode })
         // Reset
         setName(""); setDescription(""); setRules("");
         router.refresh();
-        // Navigate to the new tournament
+        // Navigate to the new tournament (admins stay in the admin section).
         if (data.tournament?.id) {
-          router.push(`/organizer/tournaments/${data.tournament.id}`);
+          router.push(isAdmin ? "/admin/tournaments" : `/organizer/tournaments/${data.tournament.id}`);
         }
       } catch {
         toast.error("Network error");
@@ -130,11 +145,31 @@ export function TournamentFormDialog({ trigger }: { trigger?: React.ReactNode })
             Create New Tournament
           </DialogTitle>
           <DialogDescription>
-            Fill in tournament details. Status will be <strong>Draft</strong> — submit for admin approval when ready.
+            Fill in tournament details. Status will be <strong>Draft</strong>
+            {isAdmin ? " — the chosen organizer can then manage and submit it." : " — submit for admin approval when ready."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label htmlFor="t-organizer">Organizer *</Label>
+              <Select value={organizerId} onValueChange={setOrganizerId}>
+                <SelectTrigger id="t-organizer"><SelectValue placeholder="— Select owning organizer —" /></SelectTrigger>
+                <SelectContent>
+                  {organizers!.length === 0 ? (
+                    <SelectItem value="_none" disabled>No approved organizers</SelectItem>
+                  ) : (
+                    organizers!.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">This organizer will own and manage the tournament.</p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="t-name">Tournament Name *</Label>
             <Input id="t-name" required value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Mirpur Premier Football League 2025" />

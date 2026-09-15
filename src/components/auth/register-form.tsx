@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Eye, EyeOff, UserPlus, Trophy, Users, Flag, Hand, Building2, Info } from "lucide-react";
+import { Eye, EyeOff, UserPlus, Trophy, Users, Flag, Building2, Info } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,9 @@ import {
 } from "@/components/ui/select";
 import { BANGLADESH_DIVISIONS } from "@/lib/constants";
 
+// Referee accounts are created by an admin (referees are vetted, not self-service).
 const ROLE_OPTIONS = [
   { value: "TEAM_MANAGER", label: "Team Manager", desc: "Create & manage teams, register for tournaments", icon: Flag },
-  { value: "REFEREE", label: "Referee", desc: "Get assigned to matches, submit results", icon: Hand },
   { value: "ORGANIZER", label: "Organizer", desc: "Create & run tournaments (requires approval)", icon: Building2 },
 ];
 
@@ -112,7 +112,6 @@ export function RegisterForm() {
           <div className="grid gap-3 pt-2">
             {[
               { icon: Flag, title: "For Team Managers", desc: "Build your squad, register for tournaments, track player stats." },
-              { icon: Hand, title: "For Referees", desc: "Get match assignments, submit official results, build your rating." },
               { icon: Building2, title: "For Organizers", desc: "Create tournaments, generate fixtures, manage registrations & standings." },
             ].map((item) => (
               <div key={item.title} className="flex gap-3 rounded-lg bg-white/10 p-3 backdrop-blur">

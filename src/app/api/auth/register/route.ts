@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     const existing = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (existing) return errorResponse("Email already registered", 409);
 
-    const allowedRoles = [ROLES.TEAM_MANAGER, ROLES.REFEREE, ROLES.ORGANIZER];
+    // Referees are created by admins only — not via public self-registration.
+    const allowedRoles = [ROLES.TEAM_MANAGER, ROLES.ORGANIZER];
     const finalRole = allowedRoles.includes(role) ? role : ROLES.TEAM_MANAGER;
 
     const user = await db.user.create({

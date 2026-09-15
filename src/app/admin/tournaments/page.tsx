@@ -8,6 +8,7 @@ import {
 import { StatusBadge } from "@/components/shared/status-badge";
 import { SportBadge } from "@/components/shared/sport-badge";
 import { TournamentStatusActions } from "@/components/admin/tournament-status-actions";
+import { TournamentFormDialog } from "@/components/organizer/tournament-form-dialog";
 import { formatDate, taka } from "@/lib/helpers";
 import { SPORTS, TOURNAMENT_STATUS, TOURNAMENT_STATUS_META, SPORT_META } from "@/lib/constants";
 
@@ -41,23 +42,37 @@ export default async function AdminTournamentsPage({
   if (statusFilter !== "ALL") where.status = statusFilter;
   if (sportFilter !== "ALL") where.sport = sportFilter;
 
-  const tournaments = await db.tournament.findMany({
-    where,
-    include: {
-      venue: true,
-      organizer: { include: { user: true } },
-      _count: { select: { registrations: true, matches: true, participants: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-  });
+  const [tournaments, approvedOrganizers] = await Promise.all([
+    db.tournament.findMany({
+      where,
+      include: {
+        venue: true,
+        organizer: { include: { user: true } },
+        _count: { select: { registrations: true, matches: true, participants: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    db.organizerProfile.findMany({
+      where: { approvalStatus: "APPROVED" },
+      include: { user: { select: { name: true } } },
+      orderBy: { user: { name: "asc" } },
+    }),
+  ]);
+
+  const organizerOptions = approvedOrganizers.map((o) => ({
+    id: o.id,
+    name: o.organization ? `${o.user.name} · ${o.organization}` : o.user.name,
+  }));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tournaments"
         description="Review, approve, publish or cancel every tournament on the platform."
-      />
+      >
+        <TournamentFormDialog organizers={organizerOptions} />
+      </PageHeader>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-wrap items-center gap-2">

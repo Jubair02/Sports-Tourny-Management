@@ -9,23 +9,49 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-// UI-only settings (no DB table) — toast confirms "saved" in current session
-export function SettingsForm() {
+type Initial = {
+  winPoints: number;
+  drawPoints: number;
+  lossPoints: number;
+  contactEmail: string;
+  maintenanceMode: boolean;
+};
+
+// Persisted platform settings (Setting table). Initial values are loaded server-side.
+export function SettingsForm({ initial }: { initial: Initial }) {
   const [pending, startTransition] = useTransition();
-  const [winPoints, setWinPoints] = useState("3");
-  const [drawPoints, setDrawPoints] = useState("1");
-  const [lossPoints, setLossPoints] = useState("0");
-  const [contactEmail, setContactEmail] = useState("support@tourney.bd");
-  const [maintenance, setMaintenance] = useState(false);
+  const [winPoints, setWinPoints] = useState(String(initial.winPoints));
+  const [drawPoints, setDrawPoints] = useState(String(initial.drawPoints));
+  const [lossPoints, setLossPoints] = useState(String(initial.lossPoints));
+  const [contactEmail, setContactEmail] = useState(initial.contactEmail);
+  const [maintenance, setMaintenance] = useState(initial.maintenanceMode);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     startTransition(async () => {
-      // Simulate a save (could POST to /api/admin/settings if persisted in future)
-      await new Promise((r) => setTimeout(r, 600));
-      toast.success("Settings saved", {
-        description: "Defaults updated for new tournaments. Existing tournaments keep their own settings.",
-      });
+      try {
+        const res = await fetch("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            winPoints: Number(winPoints),
+            drawPoints: Number(drawPoints),
+            lossPoints: Number(lossPoints),
+            contactEmail,
+            maintenanceMode: maintenance,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || "Failed to save settings");
+          return;
+        }
+        toast.success("Settings saved", {
+          description: "Scoring defaults apply to newly created tournaments.",
+        });
+      } catch {
+        toast.error("Network error");
+      }
     });
   };
 

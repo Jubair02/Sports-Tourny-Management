@@ -3,6 +3,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/shared/page-elements";
 import { ContactForm } from "@/components/public/contact-form";
+import { getSettings } from "@/lib/settings";
+
+export const dynamic = "force-dynamic";
 
 const DEMO_LOGINS = [
   { role: "Admin", icon: Trophy, email: "admin@tourney.bd", password: "admin123", color: "text-amber-500" },
@@ -11,7 +14,8 @@ const DEMO_LOGINS = [
   { role: "Referee", icon: ShieldCheck, email: "ref.rahman@tourney.bd", password: "refer123", color: "text-violet-500" },
 ];
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const { contactEmail } = await getSettings();
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <PageHeader
@@ -38,7 +42,7 @@ export default function ContactPage() {
             <div className="mt-4 space-y-3">
               <InfoRow icon={MapPin} title="Visit us" lines={["House 12, Road 5", "Mirpur DOHS, Dhaka 1216", "Bangladesh"]} />
               <InfoRow icon={Phone} title="Call us" lines={["+880 1711 000000", "Sat–Thu, 10am – 6pm"]} />
-              <InfoRow icon={Mail} title="Email us" lines={["hello@tourney.bd", "support@tourney.bd"]} />
+              <InfoRow icon={Mail} title="Email us" lines={[contactEmail]} />
               <InfoRow icon={Clock} title="Office hours" lines={["Saturday – Thursday", "10:00 AM – 6:00 PM BST"]} />
             </div>
           </Card>

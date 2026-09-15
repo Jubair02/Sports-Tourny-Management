@@ -24,7 +24,6 @@ export const metadata: Metadata = {
     "sports management", "tournament organizer", "TourneyBD",
   ],
   authors: [{ name: "TourneyBD" }],
-  icons: { icon: "/logo.svg" },
   openGraph: {
     title: "TourneyBD — Sports Tournament Management Platform",
     description: "Organize, play & follow tournaments across Bangladesh.",
