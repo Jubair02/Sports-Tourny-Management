@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { LoginForm } from "@/components/auth/login-form";
@@ -19,5 +20,10 @@ export default async function LoginPage({
     const sp = await searchParams;
     redirect(sp.next || DASHBOARDS[session.role] || "/");
   }
-  return <LoginForm />;
+  // Suspense boundary is required by Next.js when the client form uses useSearchParams().
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
 }

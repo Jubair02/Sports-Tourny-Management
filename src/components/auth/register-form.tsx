@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Eye, EyeOff, UserPlus, Trophy, Users, Flag, Hand, Building2, Info } from "lucide-react";
@@ -28,7 +28,6 @@ const DASHBOARDS: Record<string, string> = {
 };
 
 export function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const [form, setForm] = useState({
@@ -82,8 +81,9 @@ export function RegisterForm() {
           toast.success(`Welcome aboard, ${data.user.name}!`);
         }
         const dest = next || DASHBOARDS[data.user.role] || "/";
-        router.push(dest);
-        router.refresh();
+        // Hard navigation guarantees the fresh session cookie is sent and
+        // the dashboard server components re-render from scratch.
+        window.location.href = dest;
       } catch {
         toast.error("Something went wrong. Try again.");
       }

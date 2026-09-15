@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Eye, EyeOff, LogIn, Trophy, Users, Hand, Flag, ChevronRight, Sparkles } from "lucide-react";
@@ -10,13 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const DEMO_ACCOUNTS = [
-  { role: "Admin", email: "admin@tourney.bd", password: "admin123", icon: Trophy, color: "bg-primary/10 text-primary" },
-  { role: "Organizer", email: "jubair@mirpursports.bd", password: "organ123", icon: Users, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
-  { role: "Team Manager", email: "rahim@dhakawarriors.bd", password: "manage123", icon: Flag, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
-  { role: "Referee", email: "ref.rahman@tourney.bd", password: "refer123", icon: Hand, color: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
-];
-
 const DASHBOARDS: Record<string, string> = {
   ADMIN: "/admin",
   ORGANIZER: "/organizer",
@@ -24,8 +17,14 @@ const DASHBOARDS: Record<string, string> = {
   REFEREE: "/referee",
 };
 
+const DEMO_ACCOUNTS = [
+  { role: "Admin", email: "admin@tourney.bd", password: "admin123", icon: Trophy, color: "bg-primary/10 text-primary" },
+  { role: "Organizer", email: "jubair@mirpursports.bd", password: "organ123", icon: Users, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  { role: "Team Manager", email: "rahim@dhakawarriors.bd", password: "manage123", icon: Flag, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400" },
+  { role: "Referee", email: "ref.rahman@tourney.bd", password: "refer123", icon: Hand, color: "bg-teal-500/10 text-teal-600 dark:text-teal-400" },
+];
+
 export function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
   const reason = searchParams.get("reason");
@@ -51,8 +50,10 @@ export function LoginForm() {
         }
         toast.success(`Welcome back, ${data.user.name}!`);
         const dest = next || DASHBOARDS[data.user.role] || "/";
-        router.push(dest);
-        router.refresh();
+        // Hard navigation guarantees the fresh session cookie is sent and
+        // the dashboard server components re-render from scratch.
+        // (router.push + router.refresh inside a transition can silently no-op.)
+        window.location.href = dest;
       } catch {
         toast.error("Something went wrong. Try again.");
       }
